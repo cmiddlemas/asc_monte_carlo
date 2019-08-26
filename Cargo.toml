@@ -1,0 +1,11 @@
+[package]
+name = "asc_monte_carlo"
+version = "0.1.0"
+authors = ["Timothy Middlemas <tm17@princeton.edu>"]
+edition = "2018"
+
+[dependencies]
+rand = "0.7.0"
+rand_xoshiro = "0.3.1"
+rand_distr = "0.2.1"
+itertools = "0.8.0"
