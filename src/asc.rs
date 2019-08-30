@@ -5,19 +5,29 @@
 // Generic over particle shape and simulation dimension
 use std::fmt::{Debug, Display};
 use rand_xoshiro::Xoshiro256StarStar;
+use rand::seq::SliceRandom;
 use itertools::{Itertools, Position};
+use std::path::Path;
+use std::fs::File;
+use std::io::Write;
+use crate::OPT;
+use rayon::prelude::*;
+use std::ops::Range;
+use rand_distr::{Uniform, Distribution};
+use crate::schedule::Schedule;
 
 // Free helper functions
 
-fn calc_offset(n: usize, dim: usize, cell: &[f64]) -> Vec<f64>
+fn calc_offset(n: usize, dim: usize, overbox: usize, cell: &[f64]) -> Vec<f64>
 {
     let mut offset = Vec::with_capacity(dim);
+    let copies = 2*(overbox as i32) + 1;
     for i in 0..dim {
         let mut coord = 0.0;
         let mut k = n as i32;
         for j in 0..dim {
-            let scalar = (k % 3 - 1) as f64;
-            k /= 3;
+            let scalar = (k % copies - 1) as f64;
+            k /= copies;
             coord += scalar*cell[dim*i + j];
         }
         offset.push(coord);
@@ -26,14 +36,18 @@ fn calc_offset(n: usize, dim: usize, cell: &[f64]) -> Vec<f64>
 }
 
 // cell stored as (dim*row + column)
+// and columns are interpreted as the
+// lattice vectors
 pub struct Asc<P> {
     dim: usize, // Dimension of configuration
     overbox: usize, // # of overboxes, needed for small unit cell
-    cell: Vec<f64>, // Unit Cell
-    p_vec: Vec<P>, // List of particles
+    pub cell: Vec<f64>, // Unit Cell
+    pub p_vec: Vec<P>, // List of particles
 }
 
-impl<P: Particle + Debug + Display> Asc<P> {
+// https://old.reddit.com/r/rust/comments/98jldy/question_about_rayon_and_intopariterator_not/
+// https://github.com/rust-lang/rust/issues/61768
+impl<P: Particle + Debug + Display + Send + Sync> Asc<P> {
     
     // Makes a trivial, generic config for testing
     pub fn make() -> Asc<P> { 
@@ -54,9 +68,28 @@ impl<P: Particle + Debug + Display> Asc<P> {
                 shape.copy_shape_random_coord(
                     &init_cell, rng
                 )
-            ) {
+            ) {} 
+            /* Some code for printing out RSA data, unlikely to want to use this
+             * in a real MC run
+            {
                 println!("Added particle {}", new_asc.p_vec.len());
+                if let Some(path) = &OPT.savefiles {
+                    if path.is_dir() {
+                        println!("Root filename cannot be empty/ you specified a dir. Skipping save.");
+                        continue;
+                    }
+                    let mut full_path = path.clone();
+                    // https://users.rust-lang.org/t/what-is-right-ways-to-concat-strings/3780/4
+                    full_path.set_file_name(
+                        format!("{}_rsa_{}.dat", 
+                                path.file_name().expect("Must give a valid root filename.")
+                                    .to_str().expect("Must give valid UTF-8 str."), 
+                                new_asc.p_vec.len()
+                    ));
+                    new_asc.save_asc(&full_path);
+                }
             }
+            */
         }
         new_asc
     }
@@ -72,7 +105,7 @@ impl<P: Particle + Debug + Display> Asc<P> {
 
     // Prints the config in a nice, ascii format
     pub fn print_asc(&self) {
-        println!("{}", self.dim);
+        println!("{} {} {}", self.dim, self.overbox, P::TYPE);
         for entry in self.cell.iter().with_position() {
             match entry {
                 Position::Last(x) => println!("{}", x),
@@ -86,24 +119,53 @@ impl<P: Particle + Debug + Display> Asc<P> {
         }
     }
 
+    // Saves the config in a nice, ascii format given path
+    // Panics on any error
+    // Tries to wait until data hits disk
+    pub fn save_asc(&self, path: &Path) {
+        let mut file = File::create(path).expect("Must specify valid path to save to.");
+        writeln!(&mut file, "{} {} {}", self.dim, self.overbox, P::TYPE).expect("Failed write during save.");
+        for entry in self.cell.iter().with_position() {
+            match entry {
+                Position::Last(x) => writeln!(&mut file, "{}", x),
+                Position::Middle(x) => write!(&mut file, "{} ", x),
+                Position::First(x) => write!(&mut file, "{} ", x),
+                Position::Only(x) => writeln!(&mut file, "{}", x),
+            }.expect("Failed write during save.");
+        }
+        for p in &self.p_vec {
+            writeln!(&mut file, "{}", p).expect("Failed write during save.");
+        }
+        file.sync_all().expect("Failed to sync during save.");
+    }
+
     // returns number of overlaps
     pub fn check_particle(&self, fixed: &P) -> usize {
-        let mut count = 0;
         let n_offset = (2*self.overbox + 1).pow(self.dim as u32);
-        let offset_vec: Vec<Vec<f64>>  = (0..n_offset)
-            .map(|x| calc_offset(x, self.dim, &self.cell))
-            .collect();
-        for imaged in &self.p_vec {
-            for i in 0..n_offset {
+        
+        (0..n_offset)
+            .map(|x| calc_offset(x, self.dim, self.overbox, &self.cell))
+            // For some reason faster than into_par_iter(), also see
+            // https://users.rust-lang.org/t/for-loops-in-rust/8217/4
+            .collect::<Vec<Vec<f64>>>()
+            .par_iter()
+            .map(|offset|
+                self.p_vec.iter()
+                    .map(|imaged| fixed.check_overlap(imaged, &offset) as usize)
+                    .sum::<usize>()
+                )
+            .sum()
+        
+    /* Old code, reversed inner and outer loops
+        self.p_vec.par_iter().map(|imaged|
+            // https://users.rust-lang.org/t/auto-vectorization-in-rust/24379/2
+            offset_vec.iter().map(|offset|
                 // https://stackoverflow.com/questions/55461617/how-do-i-convert-a-boolean-to-an-integer-in-rust
-                count += fixed.check_overlap(
-                    imaged,
-                    &offset_vec[i]
-                ) as usize;
-            }
-        }
-        //println!("{}", count);
-        count
+                fixed.check_overlap(imaged, offset) as usize
+            // https://stackoverflow.com/questions/51283403/cannot-infer-type-for-b-for-filter-map-sum
+            ).sum::<usize>()
+        ).sum()
+    */
     }
 
     // returns true if add is successful
@@ -114,14 +176,83 @@ impl<P: Particle + Debug + Display> Asc<P> {
         self.p_vec.push(p);
         true
     }
+
+    pub fn try_cell_move(&mut self,
+                         schedule: &Schedule<P>,
+                         rng: &mut Xoshiro256StarStar
+    ) -> bool
+    {
+        true
+    }
+
+    pub fn try_particle_move(&mut self,
+                             schedule: &mut Schedule<P>,
+                             rng: &mut Xoshiro256StarStar
+    ) -> bool
+    {
+        let r_idx: usize = Uniform::new(0, self.p_vec.len())
+            .sample(rng);
+        let old_p = self.p_vec[r_idx]
+            .perturb(&self.cell, &schedule.particle_param, rng);
+        if self.check_particle(&self.p_vec[r_idx]) > 1 { //reject
+            self.p_vec[r_idx] = old_p; //roll back
+            P::sample_obs_failed_move(
+                schedule,
+                self
+            );
+            false
+        } else { //accept
+            P::sample_obs_accepted_pmove(
+                schedule,
+                self,
+                r_idx,
+                &old_p
+            );
+            true
+        }
+    }
 }
 
 pub trait Particle {
+    const TYPE: &'static str;
+
     // offset is a vector to add to translational coord of 
     // other
     fn check_overlap(&self, other: &Self, offset: &[f64]) -> bool;
+    
     fn copy_shape_random_coord(&self,
                                cell: &[f64],
                                rng: &mut Xoshiro256StarStar) 
     -> Self;
+    
+    // Returns a copy of the original coordinates,
+    // changes the given object
+    fn perturb(&mut self,
+               cell: &[f64],
+               param: &[f64],
+               rng: &mut Xoshiro256StarStar
+    ) -> Self;
+    
+    fn sample_obs_sweep(
+        schedule: &mut Schedule<Self>,
+        config: &Asc<Self>
+    ) where Self: std::marker::Sized;
+    
+    fn sample_obs_failed_move(
+        schedule: &mut Schedule<Self>,
+        config: &Asc<Self>
+    ) where Self: std::marker::Sized;
+
+    fn sample_obs_accepted_pmove(
+        schedule: &mut Schedule<Self>,
+        config: &Asc<Self>,
+        changed_idx: usize,
+        old_p: &Self
+    ) where Self: std::marker::Sized;
+
+    fn sample_obs_accepted_cmove(
+        schedule: &mut Schedule<Self>,
+        config: &Asc<Self>,
+        old_c: &[f64]
+    ) where Self: std::marker::Sized;
 }
