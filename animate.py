@@ -26,8 +26,8 @@ def update(frame):
         unit = np.fromstring(s, sep = ' ')
         config = np.atleast_2d(np.loadtxt(f))
         ax.clear()
-        ax.set_xlim(0-config[0,2]*1.1, unit[0]+config[0,2]*1.1)
-        ax.set_ylim(0-config[0,2]*1.1, unit[3]+config[0,2]*1.1)
+        ax.set_xlim(-3.0 -config[0,2]*1.1, unit[0]+3.0+config[0,2]*1.1)
+        ax.set_ylim(-3.0 -config[0,2]*1.1, unit[3]+3.0+config[0,2]*1.1)
         for i in range(0,len(config)):
             circle = Circle((config[i,0], config[i,1]), config[i,2])
             ax.add_artist(circle)

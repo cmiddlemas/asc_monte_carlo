@@ -95,7 +95,32 @@ impl Particle for Disk {
         old_disk
     }
 
+    // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)
+    fn apply_strain(&mut self, old_cell: &[f64], new_cell: &[f64]) {
+        const DIM: usize = 2;
+        // convert to lattice coords
+        // https://www.mathsisfun.com/algebra/matrix-inverse.html
+        let det = old_cell[DIM*0 + 0]*old_cell[DIM*1 + 1] 
+                - old_cell[DIM*1 + 0]*old_cell[DIM*0 + 1];
+        let lat_x = (old_cell[DIM*1 + 1]*self.pos[0] 
+               - old_cell[DIM*0 + 1]*self.pos[1])
+                /det;
+        let lat_y = (-old_cell[DIM*1 + 0]*self.pos[0]
+                 +old_cell[DIM*0 + 0]*self.pos[1])
+                /det;
+        // set to new cell
+        self.pos[0] = lat_x*new_cell[DIM*0 + 0] + lat_y*new_cell[DIM*0 + 1];
+        self.pos[1] = lat_x*new_cell[DIM*1 + 0] + lat_y*new_cell[DIM*1 + 1];
+    }
+
+    fn init_obs() -> Vec<f64> {
+        vec![0.0, 0.0] // [samples, sum of volume]
+    }
+
     fn sample_obs_sweep(schedule: &mut Schedule<Self>, config: &Asc<Self>) {
+        let vol = schedule.running_obs[1]/schedule.running_obs[0];
+        schedule.running_obs = vec![0.0,0.0];
+        println!("Cell volume over sweep: {}", vol);
     }
 
     fn sample_obs_failed_move(
@@ -103,6 +128,8 @@ impl Particle for Disk {
         config: &Asc<Self>
     )
     {
+        schedule.running_obs[0] += 1.0;
+        schedule.running_obs[1] += config.cell_volume();
     }
 
     fn sample_obs_accepted_pmove(
@@ -112,6 +139,8 @@ impl Particle for Disk {
         old_p: &Self
     )
     {
+        schedule.running_obs[0] += 1.0;
+        schedule.running_obs[1] += config.cell_volume();
     }
     
     fn sample_obs_accepted_cmove(
@@ -120,5 +149,7 @@ impl Particle for Disk {
         old_c: &[f64]
     )
     {
+        schedule.running_obs[0] += 1.0;
+        schedule.running_obs[1] += config.cell_volume();
     }
 }

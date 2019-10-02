@@ -7,6 +7,7 @@ use rand::SeedableRng;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use lazy_static::lazy_static;
+use chrono::prelude::*;
 
 mod asc;
 mod disks;
@@ -50,18 +51,40 @@ struct Opt {
     moves: usize,
 
     /// Probability of doing a cell move
-    #[structopt(long, default_value = "0.0")]
+    #[structopt(long, default_value = "0.001")]
     pcell: f64,
 
     /// Std dev of gaussian distribution
     /// for translational moves, as fraction
     /// of particle radius
-    #[structopt(long, default_value = "1.0")]
+    #[structopt(long, default_value = "0.3")]
     dtrans: f64,
 
     /// Radius of spherical particles
     #[structopt(long, default_value = "1.0")]
     radius: f64,
+
+    /// Initial pressure of system
+    #[structopt(long, default_value = "1.0")]
+    ipressure: f64,
+
+    /// Initial shear step width
+    #[structopt(long, default_value = "0.1")]
+    shear: f64,
+
+    /// Initial axial compression step width
+    #[structopt(long, default_value = "0.1")]
+    axial: f64,
+
+    /// Initial isotropic volume change step width
+    #[structopt(long, default_value = "0.1")]
+    isotropic: f64,
+
+    /// Should the program adjust the step sizes
+    /// to try and keep acceptance ratio between
+    /// 0.4 and 0.6?
+    #[structopt(long)]
+    adjust: bool,
 }
 
 lazy_static! {
@@ -69,14 +92,23 @@ lazy_static! {
 }
 
 fn main() {
+    println!("Starting program at: {}", Utc::now());
+    println!("Given command line options:");
     println!("{:?}", *OPT);
     let shape = Disk::make_shape(OPT.radius);
     let mut init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
     let mut rng = Xoshiro256StarStar::seed_from_u64(0);
     let mut config = Asc::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
-    //config.print_asc();
+    println!("Initial Configuration:");
+    config.print_asc();
     let mut schedule = Schedule::make();
-    schedule.run(&mut config, &mut rng);
+    println!("Running schedule:");
     println!("{:?}", schedule);
-    //config.print_asc();
+    schedule.run(&mut config, &mut rng);
+    println!("Ended schedule:");
+    println!("{:?}", schedule);
+    println!("Final Configuration:");
+    config.print_asc();
+    println!("Ending program at: {}", Utc::now());
 }
+

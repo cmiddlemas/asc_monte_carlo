@@ -8,12 +8,12 @@ use rand_xoshiro::Xoshiro256StarStar;
 use rand::seq::SliceRandom;
 use itertools::{Itertools, Position};
 use std::path::Path;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use crate::OPT;
 use rayon::prelude::*;
 use std::ops::Range;
-use rand_distr::{Uniform, Distribution};
+use rand_distr::{Uniform, Normal, Distribution};
 use crate::schedule::Schedule;
 
 // Free helper functions
@@ -38,6 +38,7 @@ fn calc_offset(n: usize, dim: usize, overbox: usize, cell: &[f64]) -> Vec<f64>
 // cell stored as (dim*row + column)
 // and columns are interpreted as the
 // lattice vectors
+#[derive(Clone)]
 pub struct Asc<P> {
     dim: usize, // Dimension of configuration
     overbox: usize, // # of overboxes, needed for small unit cell
@@ -47,7 +48,7 @@ pub struct Asc<P> {
 
 // https://old.reddit.com/r/rust/comments/98jldy/question_about_rayon_and_intopariterator_not/
 // https://github.com/rust-lang/rust/issues/61768
-impl<P: Particle + Debug + Display + Send + Sync> Asc<P> {
+impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
     
     // Makes a trivial, generic config for testing
     pub fn make() -> Asc<P> { 
@@ -136,7 +137,13 @@ impl<P: Particle + Debug + Display + Send + Sync> Asc<P> {
         for p in &self.p_vec {
             writeln!(&mut file, "{}", p).expect("Failed write during save.");
         }
+        file.flush().expect("Failed to flush file during save");
         file.sync_all().expect("Failed to sync during save.");
+        let mut dir = OpenOptions::new()
+            .write(true)
+            .open(path.parent().expect("Must have parent directory"))
+            .expect("Failed to open parent directory");
+        dir.sync_all().expect("Failed to sync directory during save.");
     }
 
     // returns number of overlaps
@@ -148,7 +155,7 @@ impl<P: Particle + Debug + Display + Send + Sync> Asc<P> {
             // For some reason faster than into_par_iter(), also see
             // https://users.rust-lang.org/t/for-loops-in-rust/8217/4
             .collect::<Vec<Vec<f64>>>()
-            .par_iter()
+            .iter()
             .map(|offset|
                 self.p_vec.iter()
                     .map(|imaged| fixed.check_overlap(imaged, &offset) as usize)
@@ -177,12 +184,83 @@ impl<P: Particle + Debug + Display + Send + Sync> Asc<P> {
         true
     }
 
+    // TODO: Maybe should replace by appropriate nalgebra calls?
+    pub fn cell_volume(&self) -> f64 {
+        match self.dim {
+            2 => { // Simple formula for determinant
+                (self.cell[0]*self.cell[3]
+                    - self.cell[1]*self.cell[2]).abs()
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    fn is_valid(&self) -> bool {
+        self.p_vec.par_iter()
+            .map(|p| self.check_particle(p))
+            .all(|x| x <= 1)
+    }
+
     pub fn try_cell_move(&mut self,
                          schedule: &Schedule<P>,
                          rng: &mut Xoshiro256StarStar
     ) -> bool
     {
-        true
+        // Cell changes should respect the overall scale
+        // of the current cell
+        let ldim = self.cell_volume().powf(1.0/(self.dim as f64));
+        let iso_dist = Normal::new(0.0,
+                                   ldim*schedule.cell_param[0])
+            .unwrap();
+        let shear_dist = Normal::new(0.0,
+                                     ldim*schedule.cell_param[1])
+            .unwrap();
+        let axi_dist = Normal::new(0.0,
+                                   ldim*schedule.cell_param[2])
+            .unwrap();
+        let uni_dist = Uniform::new(0.0, 1.0); // for probabilities
+
+        let old_asc = self.clone();
+        
+        match self.dim {
+            2 => {
+                // Choose strain
+                let iso = iso_dist.sample(rng);
+                let shear = shear_dist.sample(rng);
+                let axi = axi_dist.sample(rng);
+                let strain = [iso + axi, shear, shear, iso - axi];
+                // Change unit cell
+                for (e, s) in self.cell.iter_mut().zip(strain.iter()) {
+                    *e += *s;
+                }
+                // Kinda weird, need to do ref outside of closure
+                // https://stackoverflow.com/questions/48717833/how-to-use-struct-self-in-member-method-closure
+                let new_cell = &self.cell;
+                // Change particles
+                self.p_vec.par_iter_mut().for_each(|p| {
+                    p.apply_strain(&old_asc.cell, new_cell);
+                });
+                if self.is_valid() { // Accept probabilistically
+                    // http://www.pages.drexel.edu/~cfa22/msim/node31.html
+                    let new_vol = self.cell_volume();
+                    let old_vol = old_asc.cell_volume();
+                    let n_particles = self.p_vec.len() as f64;
+                    let vol_factor = 
+                        (-schedule.beta*schedule.pressure*(new_vol - old_vol)
+                         +n_particles*(new_vol/old_vol).ln()).exp();
+                    if uni_dist.sample(rng) < vol_factor { //Keep config
+                        true
+                    } else { //Reset config
+                        *self = old_asc;
+                        false
+                    }
+                } else { // Reset config
+                    *self = old_asc;
+                    false
+                }
+            }
+            _ => unimplemented!(),
+        }
     }
 
     pub fn try_particle_move(&mut self,
@@ -213,7 +291,8 @@ impl<P: Particle + Debug + Display + Send + Sync> Asc<P> {
     }
 }
 
-pub trait Particle {
+pub trait Particle 
+where Self: std::clone::Clone + std::marker::Sized {
     const TYPE: &'static str;
 
     // offset is a vector to add to translational coord of 
@@ -232,27 +311,31 @@ pub trait Particle {
                param: &[f64],
                rng: &mut Xoshiro256StarStar
     ) -> Self;
-    
+
+    fn apply_strain(&mut self, old_cell: &[f64], new_cell: &[f64]);
+   
+    fn init_obs() -> Vec<f64>;
+
     fn sample_obs_sweep(
         schedule: &mut Schedule<Self>,
         config: &Asc<Self>
-    ) where Self: std::marker::Sized;
+    );
     
     fn sample_obs_failed_move(
         schedule: &mut Schedule<Self>,
         config: &Asc<Self>
-    ) where Self: std::marker::Sized;
+    );
 
     fn sample_obs_accepted_pmove(
         schedule: &mut Schedule<Self>,
         config: &Asc<Self>,
         changed_idx: usize,
         old_p: &Self
-    ) where Self: std::marker::Sized;
+    );
 
     fn sample_obs_accepted_cmove(
         schedule: &mut Schedule<Self>,
         config: &Asc<Self>,
         old_c: &[f64]
-    ) where Self: std::marker::Sized;
+    );
 }
