@@ -191,6 +191,9 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
                 (self.cell[0]*self.cell[3]
                     - self.cell[1]*self.cell[2]).abs()
             }
+            3 => {
+                unimplemented!();
+            }
             _ => unimplemented!(),
         }
     }
@@ -206,17 +209,11 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
                          rng: &mut Xoshiro256StarStar
     ) -> bool
     {
-        // Cell changes should respect the overall scale
-        // of the current cell
-        let ldim = self.cell_volume().powf(1.0/(self.dim as f64));
-        let iso_dist = Normal::new(0.0,
-                                   ldim*schedule.cell_param[0])
+        let iso_dist = Normal::new(0.0, schedule.cell_param[0])
             .unwrap();
-        let shear_dist = Normal::new(0.0,
-                                     ldim*schedule.cell_param[1])
+        let shear_dist = Normal::new(0.0, schedule.cell_param[1])
             .unwrap();
-        let axi_dist = Normal::new(0.0,
-                                   ldim*schedule.cell_param[2])
+        let axi_dist = Normal::new(0.0, schedule.cell_param[2])
             .unwrap();
         let uni_dist = Uniform::new(0.0, 1.0); // for probabilities
 
@@ -258,6 +255,9 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
                     *self = old_asc;
                     false
                 }
+            }
+            3 => {
+                unimplemented!();
             }
             _ => unimplemented!(),
         }
