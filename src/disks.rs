@@ -6,6 +6,7 @@ use std::fmt;
 use std::cmp::PartialEq;
 use crate::asc::Asc;
 use crate::schedule::Schedule;
+use crate::OPT;
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
@@ -121,6 +122,21 @@ impl Particle for Disk {
         let vol = schedule.running_obs[1]/schedule.running_obs[0];
         schedule.running_obs = vec![0.0,0.0];
         println!("Cell volume over sweep: {}", vol);
+        if let Some(path) = &OPT.savefiles {
+            if path.is_dir() {
+                println!("Root filename cannot be empty/ you specified a dir. Skipping save.");
+            } else {
+                let mut full_path = path.clone();
+                // https://users.rust-lang.org/t/what-is-right-ways-to-concat-strings/3780/4
+                full_path.set_file_name(
+                    format!("{}_sweep_{}.dat", 
+                        path.file_name().expect("Must give a valid root filename.")
+                            .to_str().expect("Must give valid UTF-8 str."), 
+                        schedule.current_sweep
+                ));
+                config.save_asc(&full_path);
+            }
+        }
     }
 
     fn sample_obs_failed_move(

@@ -140,7 +140,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
         file.flush().expect("Failed to flush file during save");
         file.sync_all().expect("Failed to sync during save.");
         let mut dir = OpenOptions::new()
-            .write(true)
+            .read(true)
             .open(path.parent().expect("Must have parent directory"))
             .expect("Failed to open parent directory");
         dir.sync_all().expect("Failed to sync directory during save.");
@@ -152,17 +152,20 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
         
         (0..n_offset)
             .map(|x| calc_offset(x, self.dim, self.overbox, &self.cell))
-            // For some reason faster than into_par_iter(), also see
-            // https://users.rust-lang.org/t/for-loops-in-rust/8217/4
-            .collect::<Vec<Vec<f64>>>()
-            .iter()
             .map(|offset|
                 self.p_vec.iter()
                     .map(|imaged| fixed.check_overlap(imaged, &offset) as usize)
                     .sum::<usize>()
                 )
             .sum()
-        
+
+            // For future reference, to parallelize range:
+            // https://users.rust-lang.org/t/rayon-parallel-sum-from-range/6367
+
+            // Obsolete comment, was for when single particle check was parallelized
+            // For some reason faster than into_par_iter(), also see
+            // https://users.rust-lang.org/t/for-loops-in-rust/8217/4
+
     /* Old code, reversed inner and outer loops
         self.p_vec.par_iter().map(|imaged|
             // https://users.rust-lang.org/t/auto-vectorization-in-rust/24379/2

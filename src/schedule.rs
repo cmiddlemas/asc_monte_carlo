@@ -13,6 +13,7 @@ const INCREASE_MOD: f64 = 1.111111111111111;
 
 #[derive(Debug)]
 pub struct Schedule<P> {
+    pub current_sweep: usize,
     particle_accepts: usize,
     particle_tries: usize,
     cell_accepts: usize,
@@ -33,6 +34,7 @@ pub struct Schedule<P> {
 impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
     pub fn make() -> Schedule<P> {
         Schedule {
+            current_sweep: 0,
             particle_accepts: 0,
             particle_tries: 0,
             cell_accepts: 0,
@@ -75,7 +77,8 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
         }
     }
 
-    fn post_sweep(&mut self) { 
+    fn post_sweep(&mut self) {
+        self.current_sweep += 1;
         // Adjust MC move parameters based on acceptance ratio
         // This simple algorithm keeps ratio between parameters the same
         if self.adjust_params {
