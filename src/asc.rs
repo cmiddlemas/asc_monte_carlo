@@ -5,15 +5,17 @@
 // Generic over particle shape and simulation dimension
 use std::fmt::{Debug, Display};
 use rand_xoshiro::Xoshiro256StarStar;
+use rand::Rng;
 use rand::seq::SliceRandom;
 use itertools::{Itertools, Position};
 use std::path::Path;
 use std::fs::{File, OpenOptions};
-use std::io::Write;
+use std::io::{Write, BufWriter};
 use crate::OPT;
 use rayon::prelude::*;
 use std::ops::Range;
 use rand_distr::{Uniform, Normal, Distribution};
+use nalgebra::{Matrix3};
 use crate::schedule::Schedule;
 
 // Free helper functions
@@ -123,8 +125,9 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
     // Saves the config in a nice, ascii format given path
     // Panics on any error
     // Tries to wait until data hits disk
+    // https://doc.rust-lang.org/std/io/struct.BufWriter.html
     pub fn save_asc(&self, path: &Path) {
-        let mut file = File::create(path).expect("Must specify valid path to save to.");
+        let mut file = BufWriter::new(File::create(path).expect("Must specify valid path to save to."));
         writeln!(&mut file, "{} {} {}", self.dim, self.overbox, P::TYPE).expect("Failed write during save.");
         for entry in self.cell.iter().with_position() {
             match entry {
@@ -137,8 +140,9 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
         for p in &self.p_vec {
             writeln!(&mut file, "{}", p).expect("Failed write during save.");
         }
-        file.flush().expect("Failed to flush file during save");
-        file.sync_all().expect("Failed to sync during save.");
+        let mut f = file.into_inner().expect("Failed to unwrap buffer during save");
+        f.flush().expect("Failed to flush file writer during save");
+        f.sync_all().expect("Failed to sync during save.");
         let mut dir = OpenOptions::new()
             .read(true)
             .open(path.parent().expect("Must have parent directory"))
@@ -195,7 +199,8 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
                     - self.cell[1]*self.cell[2]).abs()
             }
             3 => {
-                unimplemented!();
+                let u = Matrix3::from_row_slice(&self.cell);
+                (u.row(0).dot(&u.row(1).cross(&u.row(2)))).abs()
             }
             _ => unimplemented!(),
         }
@@ -233,36 +238,59 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
                 for (e, s) in self.cell.iter_mut().zip(strain.iter()) {
                     *e += *s;
                 }
-                // Kinda weird, need to do ref outside of closure
-                // https://stackoverflow.com/questions/48717833/how-to-use-struct-self-in-member-method-closure
-                let new_cell = &self.cell;
-                // Change particles
-                self.p_vec.par_iter_mut().for_each(|p| {
-                    p.apply_strain(&old_asc.cell, new_cell);
-                });
-                if self.is_valid() { // Accept probabilistically
-                    // http://www.pages.drexel.edu/~cfa22/msim/node31.html
-                    let new_vol = self.cell_volume();
-                    let old_vol = old_asc.cell_volume();
-                    let n_particles = self.p_vec.len() as f64;
-                    let vol_factor = 
-                        (-schedule.beta*schedule.pressure*(new_vol - old_vol)
-                         +n_particles*(new_vol/old_vol).ln()).exp();
-                    if uni_dist.sample(rng) < vol_factor { //Keep config
-                        true
-                    } else { //Reset config
-                        *self = old_asc;
-                        false
-                    }
-                } else { // Reset config
-                    *self = old_asc;
-                    false
-                }
             }
             3 => {
-                unimplemented!();
+                // Choose strain
+                let iso = iso_dist.sample(rng);
+                let shear1 = shear_dist.sample(rng);
+                let shear2 = shear_dist.sample(rng);
+                let shear3 = shear_dist.sample(rng);
+                let axi1 = axi_dist.sample(rng);
+                let axi2 = axi_dist.sample(rng);
+                
+                let axis_choice: usize = rng.gen_range(0,3);
+                let d1; let d2; let d3;
+                match axis_choice {
+                    0 => {d1 = iso + axi1; d2 = iso + axi2; d3 = iso - axi1 - axi2},
+                    1 => {d1 = iso - axi1 - axi2; d2 = iso + axi1; d3 = iso + axi2},
+                    2 => {d1 = iso + axi2; d2 = iso - axi1 - axi2; d3 = iso + axi1},
+                    _ => unreachable!(),
+                }
+                
+                let strain = [d1, shear1, shear2,
+                              shear1, d2, shear3,
+                              shear2, shear3, d3];
+                // Change unit cell
+                for (e, s) in self.cell.iter_mut().zip(strain.iter()) {
+                    *e += *s;
+                }
             }
             _ => unimplemented!(),
+        }
+        // Kinda weird, need to do ref outside of closure
+        // https://stackoverflow.com/questions/48717833/how-to-use-struct-self-in-member-method-closure
+        let new_cell = &self.cell;
+        // Change particles
+        self.p_vec.par_iter_mut().for_each(|p| {
+            p.apply_strain(&old_asc.cell, new_cell);
+        });
+        if self.is_valid() { // Accept probabilistically
+            // http://www.pages.drexel.edu/~cfa22/msim/node31.html
+            let new_vol = self.cell_volume();
+            let old_vol = old_asc.cell_volume();
+            let n_particles = self.p_vec.len() as f64;
+            let vol_factor = 
+                (-schedule.beta*schedule.pressure*(new_vol - old_vol)
+                 +n_particles*(new_vol/old_vol).ln()).exp();
+            if uni_dist.sample(rng) < vol_factor { //Keep config
+                true
+            } else { //Reset config
+                *self = old_asc;
+                false
+            }
+        } else { // Reset config
+            *self = old_asc;
+            false
         }
     }
 

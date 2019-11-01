@@ -12,15 +12,21 @@ use chrono::prelude::*;
 mod asc;
 mod disks;
 mod schedule;
+mod spheres;
 
 use asc::{Asc, Particle};
 use disks::{Disk};
+use spheres::{Sphere};
 use schedule::Schedule;
 
 // Struct for command line
 #[derive(StructOpt, Debug)]
 #[structopt(name = "asc_monte_carlo")]
 struct Opt {
+    /// Dimension
+    #[structopt(short = "d", long, default_value = "3")]
+    dimension: usize,
+
     /// Number of particles
     #[structopt(short = "n", long, default_value = "10")]
     number: usize,
@@ -69,15 +75,15 @@ struct Opt {
     ipressure: f64,
 
     /// Initial shear step width
-    #[structopt(long, default_value = "0.1")]
+    #[structopt(long, default_value = "0.01")]
     shear: f64,
 
     /// Initial axial compression step width
-    #[structopt(long, default_value = "0.1")]
+    #[structopt(long, default_value = "0.01")]
     axial: f64,
 
     /// Initial isotropic volume change step width
-    #[structopt(long, default_value = "0.1")]
+    #[structopt(long, default_value = "0.01")]
     isotropic: f64,
 
     /// Should the program adjust the step sizes
@@ -91,24 +97,44 @@ lazy_static! {
     static ref OPT: Opt = Opt::from_args();
 }
 
-fn main() {
-    println!("Starting program at: {}", Utc::now());
-    println!("Given command line options:");
-    println!("{:?}", *OPT);
-    let shape = Disk::make_shape(OPT.radius);
-    let mut init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
-    let mut rng = Xoshiro256StarStar::seed_from_u64(0);
-    let mut config = Asc::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
+fn make_and_run_schedule<P: Particle + Clone + Debug + Display + Send + Sync>
+        (mut config: Asc<P>, rng: &mut Xoshiro256StarStar) {
     println!("Initial Configuration:");
     config.print_asc();
     let mut schedule = Schedule::make();
     println!("Running schedule:");
     println!("{:?}", schedule);
-    schedule.run(&mut config, &mut rng);
+    schedule.run(&mut config, rng);
     println!("Ended schedule:");
     println!("{:?}", schedule);
     println!("Final Configuration:");
     config.print_asc();
     println!("Ending program at: {}", Utc::now());
+}
+
+fn main() {
+    println!("Starting program at: {}", Utc::now());
+    println!("Given command line options:");
+    println!("{:?}", *OPT);
+    // Initialize rng
+    let mut rng = Xoshiro256StarStar::seed_from_u64(0);
+    // Make and run the correct simulation
+    match OPT.dimension {
+        2 => {
+            let shape = Disk::make_shape(OPT.radius);
+            let mut init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
+            let config = Asc::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
+            make_and_run_schedule(config, &mut rng);
+        }
+        3 => {
+            let shape = Sphere::make_shape(OPT.radius);
+            let mut init_cell = vec![OPT.side, 0.0, 0.0,
+                                    0.0, OPT.side, 0.0,
+                                    0.0, 0.0, OPT.side];
+            let config = Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
+            make_and_run_schedule(config, &mut rng);
+        }
+        _ => panic!("Can't handle that dimension yet!"),
+    }
 }
 
