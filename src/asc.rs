@@ -37,6 +37,25 @@ fn calc_offset(n: usize, dim: usize, overbox: usize, cell: &[f64]) -> Vec<f64>
     offset
 }
 
+pub fn save_asc_from_opt<P: Particle + Debug + Display + Send + Sync + Clone>
+    (config: &Asc<P>, annotation: &str) {
+    if let Some(path) = &OPT.savefiles {
+        if path.is_dir() {
+            println!("Root filename cannot be empty/ you specified a dir. Skipping save.");
+        } else {
+            let mut full_path = path.clone();
+            // https://users.rust-lang.org/t/what-is-right-ways-to-concat-strings/3780/4
+            full_path.set_file_name(
+                format!("{}_{}.dat", 
+                    path.file_name().expect("Must give a valid root filename.")
+                        .to_str().expect("Must give valid UTF-8 str."), 
+                    annotation
+            ));
+            config.save_asc(&full_path);
+        }
+    }
+}
+
 // cell stored as (dim*row + column)
 // and columns are interpreted as the
 // lattice vectors
@@ -143,9 +162,11 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
         let mut f = file.into_inner().expect("Failed to unwrap buffer during save");
         f.flush().expect("Failed to flush file writer during save");
         f.sync_all().expect("Failed to sync during save.");
+        // https://doc.rust-lang.org/std/path/struct.Path.html#method.canonicalize
+        let canonical = path.canonicalize().expect("Must be able to canonicalize"); 
         let mut dir = OpenOptions::new()
             .read(true)
-            .open(path.parent().expect("Must have parent directory"))
+            .open(canonical.parent().expect("Canonical form should have parent"))
             .expect("Failed to open parent directory");
         dir.sync_all().expect("Failed to sync directory during save.");
     }
