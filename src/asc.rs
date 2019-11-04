@@ -163,7 +163,15 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
         f.flush().expect("Failed to flush file writer during save");
         f.sync_all().expect("Failed to sync during save.");
         // https://doc.rust-lang.org/std/path/struct.Path.html#method.canonicalize
-        let canonical = path.canonicalize().expect("Must be able to canonicalize"); 
+        let canonical = path.canonicalize().expect("Must be able to canonicalize");
+        // some info about fsyncing directory
+        // http://blog.httrack.com/blog/2013/11/15/everything-you-always-wanted-to-know-about-fsync/
+        // https://old.reddit.com/r/node/comments/4r8k11/how_to_call_fsync_on_a_directory/
+        // https://github.com/google/renameio/issues/11
+        // https://stackoverflow.com/questions/51100698/how-to-fsync-a-directory-under-linux-in-c
+        // https://stackoverflow.com/questions/20687611/is-there-fsync-but-with-path-parameter
+        // https://stackoverflow.com/questions/49060587/is-there-a-way-to-call-fsync-flush-the-parent-of-a-fd
+        // http://manpages.ubuntu.com/manpages/bionic/man2/fsync.2.html
         let mut dir = OpenOptions::new()
             .read(true)
             .open(canonical.parent().expect("Canonical form should have parent"))
