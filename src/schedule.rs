@@ -33,7 +33,22 @@ pub struct Schedule<P> {
 // https://stackoverflow.com/questions/42613974/why-cant-i-add-a-blanket-impl-on-a-trait-with-a-type-parameter
 impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
     pub fn make() -> Schedule<P> {
-        Schedule {
+        // Decide on particle move parameters
+        let mut p_param = Vec::new();
+        if OPT.ellipsoid {
+            // https://users.rust-lang.org/t/why-are-not-min-and-max-macros-in-the-std/9730
+            // https://stackoverflow.com/questions/28446632/how-do-i-get-the-minimum-or-maximum-value-of-an-iterator-containing-floating-poi
+            let minor_axis = *[OPT.a_semi, OPT.b_semi, OPT.c_semi].iter()
+                .min_by(|a,b| a.partial_cmp(b).expect("No NaNs"))
+                .unwrap();
+            p_param.push(OPT.dtrans*minor_axis);
+            p_param.push(OPT.drot);
+        } else {
+            p_param.push(OPT.dtrans*OPT.radius);
+        }
+        
+        // Make initial schedule
+        let mut schedule = Schedule {
             current_sweep: 0,
             particle_accepts: 0,
             particle_tries: 0,
@@ -44,13 +59,23 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
             pressure: OPT.ipressure,
             p_cell_move: OPT.pcell,
             cell_param: vec![OPT.isotropic, OPT.shear, OPT.axial],
-            particle_param: vec![OPT.dtrans*OPT.radius],
+            particle_param: p_param,
             running_obs: P::init_obs(),
             beta: 1.0, // TODO: decide if this should be 
                        // accessible to user
             adjust_params: OPT.adjust,
             _phantom: PhantomData,
+        };
+        
+        // Clamp strain parameters if needed
+        for val in schedule.cell_param.iter_mut() {
+            if *val > 0.01 {
+                println!("Clamping a strain parameter to 0.01!");
+                *val = 0.01;
+            }
         }
+
+        schedule
     }
 
     pub fn run(&mut self,

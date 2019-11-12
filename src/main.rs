@@ -15,11 +15,16 @@ mod asc;
 mod disks;
 mod schedule;
 mod spheres;
+mod ellipsoids;
 
 use asc::{Asc, Particle, save_asc_from_opt};
 use disks::{Disk};
 use spheres::{Sphere};
+use ellipsoids::{Ellipsoid};
 use schedule::Schedule;
+
+// Computed with Mathematica Student 11.2.0.0
+const PI: f64 = 3.141592653589793;
 
 // Struct for command line
 #[derive(StructOpt, Debug)]
@@ -32,6 +37,22 @@ struct Opt {
     /// Number of particles
     #[structopt(short = "n", long, default_value = "10")]
     number: usize,
+
+    /// Work with ellipsoids?
+    #[structopt(long)]
+    ellipsoid: bool,
+
+    /// x-aligned semi-axis
+    #[structopt(short = "a", default_value = "1.0")]
+    a_semi: f64,
+
+    /// y-aligned semi-axis
+    #[structopt(short = "b", default_value = "1.0")]
+    b_semi: f64,
+    
+    /// x-aligned semi-axis
+    #[structopt(short = "c", default_value = "1.0")]
+    c_semi: f64,
 
     /// Side length of initial cubic cell
     #[structopt(short = "s", long, default_value = "10.0")]
@@ -63,9 +84,14 @@ struct Opt {
 
     /// Std dev of gaussian distribution
     /// for translational moves, as fraction
-    /// of particle radius
+    /// of particle radius/minor semiaxis
     #[structopt(long, default_value = "0.3")]
     dtrans: f64,
+
+    /// Std dev of gaussian distribution for
+    /// rotational moves
+    #[structopt(long, default_value = "0.01")]
+    drot: f64,
 
     /// Radius of spherical particles
     #[structopt(long, default_value = "1.0")]
@@ -119,8 +145,12 @@ fn make_and_run_schedule<P: Particle + Clone + Debug + Display + Send + Sync>
     println!("Ending program at: {}", Utc::now());
 }
 
+fn consume<T>(arg: T) {}
+
 fn main() {
-    
+// Immediately read command line
+    consume(&*OPT);
+
 // Report runtime parameters ---------------------------------------
     println!("Starting program at: {}", Utc::now());
     println!("Given command line options:");
@@ -167,18 +197,31 @@ fn main() {
 // Make and run the correct simulation -----------------------------------
     match OPT.dimension {
         2 => {
-            let shape = Disk::make_shape(OPT.radius);
-            let mut init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
-            let config = Asc::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
-            make_and_run_schedule(config, &mut rng);
+            if OPT.ellipsoid {
+                panic!("2d ellipse packing not implemented yet!");
+            } else {
+                let shape = Disk::make_shape(OPT.radius);
+                let mut init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
+                let config = Asc::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
+                make_and_run_schedule(config, &mut rng);
+            }
         }
         3 => {
-            let shape = Sphere::make_shape(OPT.radius);
-            let mut init_cell = vec![OPT.side, 0.0, 0.0,
+            if OPT.ellipsoid {
+                let shape = Ellipsoid::make_shape(OPT.a_semi, OPT.b_semi, OPT.c_semi);
+                let mut init_cell = vec![OPT.side, 0.0, 0.0,
                                     0.0, OPT.side, 0.0,
                                     0.0, 0.0, OPT.side];
-            let config = Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
-            make_and_run_schedule(config, &mut rng);
+                let config = Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
+                make_and_run_schedule(config, &mut rng);
+            } else {
+                let shape = Sphere::make_shape(OPT.radius);
+                let mut init_cell = vec![OPT.side, 0.0, 0.0,
+                                    0.0, OPT.side, 0.0,
+                                    0.0, 0.0, OPT.side];
+                let config = Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
+                make_and_run_schedule(config, &mut rng);
+            }
         }
         _ => panic!("Can't handle that dimension yet!"),
     }
