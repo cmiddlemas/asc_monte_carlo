@@ -182,16 +182,40 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
     // returns number of overlaps
     pub fn check_particle(&self, fixed: &P) -> usize {
         let n_offset = (2*self.overbox + 1).pow(self.dim as u32);
-        
-        (0..n_offset)
-            .map(|x| calc_offset(x, self.dim, self.overbox, &self.cell))
-            .map(|offset|
-                self.p_vec.iter()
-                    .map(|imaged| fixed.check_overlap(imaged, &offset) as usize)
-                    .sum::<usize>()
-                )
-            .sum()
-
+        if OPT.parallelize_inner {
+            (0..n_offset).into_par_iter()
+                .map(|x| calc_offset(x, self.dim, self.overbox, &self.cell))
+                .map(|offset|
+                    self.p_vec.iter()
+                        .map(|imaged| fixed.check_overlap(imaged, &offset) as usize)
+                        .sum::<usize>()
+                    )
+                .sum()
+            /* Chunking strategy, probably slower, probably heard about trying this
+             * from somewhere on the internet
+            // https://stackoverflow.com/questions/37033700/how-do-i-process-a-range-in-slices-in-rust
+            (0..n_offset).collect::<Vec<usize>>()
+                .par_chunks(CHUNK_SIZE)
+                .map(|x| x.iter().map(|&e| calc_offset(e, self.dim, self.overbox, &self.cell)))
+                .map(|offset_chunk|
+                    offset_chunk.map(|offset| 
+                        self.p_vec.iter()
+                            .map(|imaged| fixed.check_overlap(imaged, &offset) as usize)
+                            .sum::<usize>()
+                    ))
+                .map(|result_chunk| result_chunk.sum::<usize>())
+                .sum()
+            */
+        } else {
+            (0..n_offset)
+                .map(|x| calc_offset(x, self.dim, self.overbox, &self.cell))
+                .map(|offset|
+                    self.p_vec.iter()
+                        .map(|imaged| fixed.check_overlap(imaged, &offset) as usize)
+                        .sum::<usize>()
+                    )
+                .sum()
+        }
             // For future reference, to parallelize range:
             // https://users.rust-lang.org/t/rayon-parallel-sum-from-range/6367
 
@@ -236,9 +260,15 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
     }
 
     fn is_valid(&self) -> bool {
-        self.p_vec.par_iter()
-            .map(|p| self.check_particle(p))
-            .all(|x| x <= 1)
+        if OPT.parallelize_inner {
+            self.p_vec.iter()
+                .map(|p| self.check_particle(p))
+                .all(|x| x <= 1)
+        } else {
+            self.p_vec.par_iter()
+                .map(|p| self.check_particle(p))
+                .all(|x| x <= 1)
+        }
     }
 
     pub fn try_cell_move(&mut self,

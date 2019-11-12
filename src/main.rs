@@ -115,13 +115,23 @@ struct Opt {
 
     /// Should the program adjust the step sizes
     /// to try and keep acceptance ratio between
-    /// 0.4 and 0.6?
+    /// adjust-upper and adjust-lower?
     #[structopt(long)]
     adjust: bool,
+
+    #[structopt(long, default_value = "0.4")]
+    adjust_lower: f64,
+
+    #[structopt(long, default_value = "0.6")]
+    adjust_upper: f64,
 
     /// Optional file holding seed in 32 u8 format
     #[structopt(long)]
     seedfile: Option<PathBuf>,
+
+    /// Try and parallelize inner loops? Not always worth it.
+    #[structopt(long)]
+    parallelize_inner: bool,
 }
 
 lazy_static! {
