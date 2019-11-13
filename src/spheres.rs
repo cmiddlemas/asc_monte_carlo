@@ -50,6 +50,14 @@ impl Display for Sphere {
 
 impl Particle for Sphere {
     const TYPE: &'static str = "Sphere";
+
+    fn parse(line: &str) -> Self {
+        let params: Vec<f64> = line.split_whitespace()
+            .map(|x| x.parse().unwrap())
+            .collect();
+        Sphere { pos: [params[0], params[1], params[2]], radius: params[3] } 
+    }
+
     fn check_overlap(&self, other: &Self, offset: &[f64]) -> bool {
         //if *self == *other && offset.iter().all(|&x| x == 0.0) {
         //    return false; 

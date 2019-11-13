@@ -132,6 +132,12 @@ struct Opt {
     /// Try and parallelize inner loops? Not always worth it.
     #[structopt(long)]
     parallelize_inner: bool,
+
+    /// Optional file holding initial configuration
+    /// Invalidates -s, -n, -a, -b, -c, and --radius
+    /// Still must specify -d and --ellipsoid correctly
+    #[structopt(long)]
+    initfile: Option<PathBuf>,
 }
 
 lazy_static! {
@@ -210,26 +216,41 @@ fn main() {
             if OPT.ellipsoid {
                 panic!("2d ellipse packing not implemented yet!");
             } else {
-                let shape = Disk::make_shape(OPT.radius);
-                let mut init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
-                let config = Asc::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
+                let config = if let Some(path) = &OPT.initfile {
+                    Asc::from_file(path)
+                } else {
+                    println!("Running rsa...");
+                    let shape = Disk::make_shape(OPT.radius);
+                    let mut init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
+                    Asc::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng)
+                };
                 make_and_run_schedule(config, &mut rng);
             }
         }
         3 => {
             if OPT.ellipsoid {
-                let shape = Ellipsoid::make_shape(OPT.a_semi, OPT.b_semi, OPT.c_semi);
-                let mut init_cell = vec![OPT.side, 0.0, 0.0,
-                                    0.0, OPT.side, 0.0,
-                                    0.0, 0.0, OPT.side];
-                let config = Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
+                let config = if let Some(path) = &OPT.initfile {
+                    Asc::from_file(path)
+                } else {
+                    println!("Running rsa...");
+                    let shape = Ellipsoid::make_shape(OPT.a_semi, OPT.b_semi, OPT.c_semi);
+                    let mut init_cell = vec![OPT.side, 0.0, 0.0,
+                                            0.0, OPT.side, 0.0,
+                                            0.0, 0.0, OPT.side];
+                    Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng)
+                };
                 make_and_run_schedule(config, &mut rng);
             } else {
-                let shape = Sphere::make_shape(OPT.radius);
-                let mut init_cell = vec![OPT.side, 0.0, 0.0,
-                                    0.0, OPT.side, 0.0,
-                                    0.0, 0.0, OPT.side];
-                let config = Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
+                let config = if let Some(path) = &OPT.initfile {
+                    Asc::from_file(path)
+                } else {
+                    println!("Running rsa...");
+                    let shape = Sphere::make_shape(OPT.radius);
+                    let mut init_cell = vec![OPT.side, 0.0, 0.0,
+                                            0.0, OPT.side, 0.0,
+                                            0.0, 0.0, OPT.side];
+                    Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng)
+                };
                 make_and_run_schedule(config, &mut rng);
             }
         }

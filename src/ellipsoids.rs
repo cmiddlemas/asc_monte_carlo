@@ -81,7 +81,16 @@ fn pw_overlap(lambda: f64, params: &mut (Matrix3<f64>, Matrix3<f64>, Vector3<f64
 impl Particle for Ellipsoid {
     
     const TYPE: &'static str = "Ellipsoid";
-    
+ 
+    fn parse(line: &str) -> Self {
+        let params: Vec<f64> = line.split_whitespace()
+            .map(|x| x.parse().unwrap())
+            .collect();
+        Ellipsoid { pos: [params[0], params[1], params[2]], 
+                    quat: [params[3], params[4], params[5], params[6]],
+                    semi_axes: [params[7], params[8], params[9]] } 
+    }
+
     fn check_overlap(&self, other: &Self, offset: &[f64]) -> bool {
         let image_x = other.pos[0] + offset[0];
         let image_y = other.pos[1] + offset[1];

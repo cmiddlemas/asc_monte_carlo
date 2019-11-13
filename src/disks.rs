@@ -54,6 +54,14 @@ impl Display for Disk {
 
 impl Particle for Disk {
     const TYPE: &'static str = "Disk";
+
+    fn parse(line: &str) -> Self {
+        let params: Vec<f64> = line.split_whitespace()
+            .map(|x| x.parse().unwrap())
+            .collect();
+        Disk { pos: [params[0], params[1]], radius: params[2] } 
+    }
+
     fn check_overlap(&self, other: &Self, offset: &[f64]) -> bool {
         //if *self == *other && offset.iter().all(|&x| x == 0.0) {
         //    return false; 

@@ -10,7 +10,8 @@ use rand::seq::SliceRandom;
 use itertools::{Itertools, Position};
 use std::path::Path;
 use std::fs::{File, OpenOptions};
-use std::io::{Write, BufWriter};
+use std::io::{Write, BufWriter, BufReader, BufRead};
+use std::path::PathBuf;
 use crate::OPT;
 use rayon::prelude::*;
 use std::ops::Range;
@@ -74,6 +75,31 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
     // Makes a trivial, generic config for testing
     pub fn make() -> Asc<P> { 
         Asc { dim: 0, overbox: 0, cell: Vec::new(), p_vec: Vec::new()}
+    }
+
+    pub fn from_file(path: &PathBuf) -> Asc<P> {
+        // Made extensive use of the rust docs for various
+        // std components when writing this function
+        let mut infile = BufReader::new(File::open(path).expect("Input file must be valid"));
+        let mut buf = String::new();
+        // 1st line, dim overbox type
+        infile.read_line(&mut buf).expect("Valid utf-8");
+        let mut line_one = buf.split_whitespace();
+        let dim: usize = line_one.next().unwrap()
+            .parse().expect("Valid dimension");
+        let overbox: usize = line_one.next().unwrap()
+            .parse().expect("Valid overbox");
+        // 2nd line, cell
+        buf.clear();
+        infile.read_line(&mut buf).expect("Valid utf-8");
+        let cell: Vec<f64> = buf.split_whitespace()
+            .map(|x| x.parse().expect("valid unit cell"))
+            .collect();
+        // 3rd line and on, particle
+        let p_vec: Vec<P> = infile.lines()
+            .map(|x| P::parse(&x.expect("Valid utf-8")))
+            .collect();
+        Asc { dim, overbox, cell, p_vec }
     }
 
     // Make an rsa config
@@ -385,6 +411,9 @@ pub trait Particle
 where Self: std::clone::Clone + std::marker::Sized {
     const TYPE: &'static str;
 
+    // Parse from line in file
+    fn parse(line: &str) -> Self;
+    
     // offset is a vector to add to translational coord of 
     // other
     fn check_overlap(&self, other: &Self, offset: &[f64]) -> bool;
