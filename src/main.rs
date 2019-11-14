@@ -1,8 +1,6 @@
 use std::io::prelude::*;
-use std::fmt::{Debug, Display, Formatter};
-use std::fmt;
+use std::fmt::{Debug, Display};
 use rand_xoshiro::Xoshiro256StarStar;
-use rand_distr::{Uniform, Distribution};
 use rand::{SeedableRng, RngCore};
 use rand::rngs::OsRng;
 use std::path::PathBuf;
@@ -18,9 +16,9 @@ mod spheres;
 mod ellipsoids;
 
 use asc::{Asc, Particle, save_asc_from_opt};
-use disks::{Disk};
-use spheres::{Sphere};
-use ellipsoids::{Ellipsoid};
+use disks::Disk;
+use spheres::Sphere;
+use ellipsoids::Ellipsoid;
 use schedule::Schedule;
 
 // Computed with Mathematica Student 11.2.0.0
@@ -42,15 +40,15 @@ struct Opt {
     #[structopt(long)]
     ellipsoid: bool,
 
-    /// x-aligned semi-axis
+    /// X-aligned semi-axis
     #[structopt(short = "a", default_value = "1.0")]
     a_semi: f64,
 
-    /// y-aligned semi-axis
+    /// Y-aligned semi-axis
     #[structopt(short = "b", default_value = "1.0")]
     b_semi: f64,
     
-    /// x-aligned semi-axis
+    /// Z-aligned semi-axis
     #[structopt(short = "c", default_value = "1.0")]
     c_semi: f64,
 
@@ -58,14 +56,15 @@ struct Opt {
     #[structopt(short = "s", long, default_value = "10.0")]
     side: f64,
 
-    /// Root filename to save configs as
-    /// Default to only give initial and final
-    /// config on stdout, will give all sweeps
-    /// if specified
+    /// Root filename to save configs to.
+    /// If unspecified, only give initial and final
+    /// config on stdout. Will write all sweeps
+    /// to file if specified and initial/final configuration
+    /// if specified.
     #[structopt(short = "o", long)]
     savefiles: Option<PathBuf>,
 
-    /// Root filename to save pretty-printed logs
+    /// Root filename to save log tables to.
     #[structopt(long)]
     logfiles: Option<PathBuf>,
 
@@ -73,8 +72,8 @@ struct Opt {
     #[structopt(long, default_value = "100")]
     sweeps: usize,
 
-    /// Number of moves to do per sweep
-    /// Recommended at least 10x particle number
+    /// Number of moves to do per sweep, would
+    /// recommend at least 10x particle number
     #[structopt(long, default_value = "1000")]
     moves: usize,
 
@@ -89,7 +88,8 @@ struct Opt {
     dtrans: f64,
 
     /// Std dev of gaussian distribution for
-    /// rotational moves
+    /// rotational moves, using quaternion
+    /// addition algorithm in 3d
     #[structopt(long, default_value = "0.01")]
     drot: f64,
 
@@ -115,17 +115,19 @@ struct Opt {
 
     /// Should the program adjust the step sizes
     /// to try and keep acceptance ratio between
-    /// adjust-upper and adjust-lower?
+    /// adjust_upper and adjust_lower?
     #[structopt(long)]
     adjust: bool,
 
+    /// Gives the lower bound to use with --adjust
     #[structopt(long, default_value = "0.4")]
     adjust_lower: f64,
 
+    /// Gives the upper bound to use with --adjust
     #[structopt(long, default_value = "0.6")]
     adjust_upper: f64,
 
-    /// Optional file holding seed in 32 u8 format
+    /// Optional file holding seed in 32 by u8 format
     #[structopt(long)]
     seedfile: Option<PathBuf>,
 
@@ -133,9 +135,9 @@ struct Opt {
     #[structopt(long)]
     parallelize_inner: bool,
 
-    /// Optional file holding initial configuration
-    /// Invalidates -s, -n, -a, -b, -c, and --radius
-    /// Still must specify -d and --ellipsoid correctly
+    /// Optional file holding initial configuration,
+    /// invalidates -s, -n, -a, -b, -c, and --radius,
+    /// still must specify -d and --ellipsoid correctly
     #[structopt(long)]
     initfile: Option<PathBuf>,
 }
@@ -161,7 +163,7 @@ fn make_and_run_schedule<P: Particle + Clone + Debug + Display + Send + Sync>
     println!("Ending program at: {}", Utc::now());
 }
 
-fn consume<T>(arg: T) {}
+fn consume<T>(_arg: T) {}
 
 fn main() {
 // Immediately read command line
@@ -221,7 +223,7 @@ fn main() {
                 } else {
                     println!("Running rsa...");
                     let shape = Disk::make_shape(OPT.radius);
-                    let mut init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
+                    let init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
                     Asc::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng)
                 };
                 make_and_run_schedule(config, &mut rng);
@@ -234,7 +236,7 @@ fn main() {
                 } else {
                     println!("Running rsa...");
                     let shape = Ellipsoid::make_shape(OPT.a_semi, OPT.b_semi, OPT.c_semi);
-                    let mut init_cell = vec![OPT.side, 0.0, 0.0,
+                    let init_cell = vec![OPT.side, 0.0, 0.0,
                                             0.0, OPT.side, 0.0,
                                             0.0, 0.0, OPT.side];
                     Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng)
@@ -246,7 +248,7 @@ fn main() {
                 } else {
                     println!("Running rsa...");
                     let shape = Sphere::make_shape(OPT.radius);
-                    let mut init_cell = vec![OPT.side, 0.0, 0.0,
+                    let init_cell = vec![OPT.side, 0.0, 0.0,
                                             0.0, OPT.side, 0.0,
                                             0.0, 0.0, OPT.side];
                     Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng)

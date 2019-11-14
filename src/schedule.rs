@@ -100,8 +100,8 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
                rng: &mut Xoshiro256StarStar)
     {
         let u_dist = Uniform::new(0.0, 1.0);
-        for i in 0..self.n_sweeps {
-            for j in 0..self.n_moves {
+        for _i in 0..self.n_sweeps {
+            for _j in 0..self.n_moves {
                 if u_dist.sample(rng) < self.p_cell_move {
                     self.cell_tries += 1;
                     if config.try_cell_move(self, rng) {

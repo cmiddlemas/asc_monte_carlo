@@ -1,12 +1,11 @@
-use crate::asc::{Particle};
+use crate::asc::Particle;
 use rand_xoshiro::Xoshiro256StarStar;
 use rand_distr::{Uniform, Distribution, Normal};
 use std::fmt::{Display, Formatter};
 use std::fmt;
-use std::cmp::PartialEq;
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
-use crate::{OPT, PI};
+use crate::PI;
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
@@ -151,8 +150,8 @@ impl Particle for Disk {
     fn sample_obs_accepted_pmove(
         schedule: &mut Schedule<Self>,
         config: &Asc<Self>,
-        changed_idx: usize,
-        old_p: &Self
+        _changed_idx: usize,
+        _old_p: &Self
     )
     {
         schedule.running_obs[0] += 1.0;
@@ -162,7 +161,7 @@ impl Particle for Disk {
     fn sample_obs_accepted_cmove(
         schedule: &mut Schedule<Self>,
         config: &Asc<Self>,
-        old_c: &[f64]
+        _old_c: &[f64]
     )
     {
         schedule.running_obs[0] += 1.0;

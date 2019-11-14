@@ -6,18 +6,16 @@
 use std::fmt::{Debug, Display};
 use rand_xoshiro::Xoshiro256StarStar;
 use rand::Rng;
-use rand::seq::SliceRandom;
 use itertools::{Itertools, Position};
 use std::path::Path;
 use std::fs::{File, OpenOptions};
 use std::io::{Write, BufWriter, BufReader, BufRead};
 use std::path::PathBuf;
-use crate::OPT;
 use rayon::prelude::*;
-use std::ops::Range;
 use rand_distr::{Uniform, Normal, Distribution};
-use nalgebra::{Matrix3};
+use nalgebra::Matrix3;
 use crate::schedule::Schedule;
+use crate::OPT;
 
 // Free helper functions
 
@@ -73,6 +71,7 @@ pub struct Asc<P> {
 impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
     
     // Makes a trivial, generic config for testing
+    #[allow(dead_code)]
     pub fn make() -> Asc<P> { 
         Asc { dim: 0, overbox: 0, cell: Vec::new(), p_vec: Vec::new()}
     }
@@ -143,6 +142,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
     }
     
     // Dumps all the info contained in Asc
+    #[allow(dead_code)]
     pub fn debug(&self) {
         println!("dim: {}", self.dim);
         println!("{:?}", &self.cell);
@@ -198,7 +198,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
         // https://stackoverflow.com/questions/20687611/is-there-fsync-but-with-path-parameter
         // https://stackoverflow.com/questions/49060587/is-there-a-way-to-call-fsync-flush-the-parent-of-a-fd
         // http://manpages.ubuntu.com/manpages/bionic/man2/fsync.2.html
-        let mut dir = OpenOptions::new()
+        let dir = OpenOptions::new()
             .read(true)
             .open(canonical.parent().expect("Canonical form should have parent"))
             .expect("Failed to open parent directory");
