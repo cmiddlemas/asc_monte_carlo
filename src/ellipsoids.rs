@@ -43,13 +43,13 @@ impl Ellipsoid {
         self.pos = (u*lat_c).as_slice().try_into().unwrap();
     }
 
-    fn minor_semiaxis(&self) -> f64 {
+    fn minor_semi_axis(&self) -> f64 {
         *self.semi_axes.iter()
             .min_by(|a, b| a.partial_cmp(b).expect("No NaNs"))
             .expect("Not empty")
     }
 
-    fn major_semiaxis(&self) -> f64 {
+    fn major_semi_axis(&self) -> f64 {
         *self.semi_axes.iter()
             .max_by(|a, b| a.partial_cmp(b).expect("No NaNs"))
             .expect("Not empty")
@@ -101,10 +101,10 @@ impl Particle for Ellipsoid {
         // Pre-check, as suggested in Hard Convex Body Fluids
         // Try and avoid evaluating PW potential by checking inner and outer
         // spheres
-        if disp2 <= (self.minor_semiaxis() + other.minor_semiaxis()).powi(2) {
+        if disp2 <= (self.minor_semi_axis() + other.minor_semi_axis()).powi(2) {
             return true;
         }
-        if disp2 > (self.major_semiaxis() + other.major_semiaxis()).powi(2) {
+        if disp2 > (self.major_semi_axis() + other.major_semi_axis()).powi(2) {
             return false;
         }
         // Do brent's algo
