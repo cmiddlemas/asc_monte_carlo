@@ -7,8 +7,8 @@ use std::cmp::PartialEq;
 use std::convert::TryInto;
 use nalgebra::{Matrix3, Vector3};
 use crate::asc::{Asc, save_asc_from_opt};
-use crate::schedule::Schedule;
-use crate::OPT;
+use crate::schedule::{Schedule, write_sweep_log};
+use crate::{OPT, PI};
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
@@ -128,6 +128,12 @@ impl Particle for Sphere {
         let vol = schedule.running_obs[1]/schedule.running_obs[0];
         schedule.running_obs = vec![0.0,0.0];
         println!("Cell volume over sweep: {}", vol);
+        let phi = (config.p_vec.len() as f64)
+            *4.0*PI*config.p_vec[0].radius.powi(3)
+            /(3.0*vol);
+        println!("Phi over sweep: {}", phi);
+        let logline = format!("{} {} {}", schedule.current_sweep, vol, phi);
+        write_sweep_log(&logline);
         save_asc_from_opt(config, &format!("sweep_{}", schedule.current_sweep));
     }
 

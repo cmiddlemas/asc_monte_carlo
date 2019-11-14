@@ -8,7 +8,7 @@ use std::convert::TryInto;
 use nalgebra::{Matrix3, Vector3, Quaternion, UnitQuaternion, Rotation};
 use rgsl::{Minimizer, MinimizerType, Value, minimizer};
 use crate::asc::{Asc, save_asc_from_opt};
-use crate::schedule::Schedule;
+use crate::schedule::{Schedule, write_sweep_log};
 use crate::{OPT, PI};
 
 const INTERVAL_ABS_TOL: f64 = 1e-7f64;
@@ -267,6 +267,8 @@ impl Particle for Ellipsoid {
         let semi_prod: f64 = config.p_vec[0].semi_axes.iter().product();
         let phi = (config.p_vec.len() as f64)*4.0*PI*semi_prod/(3.0*vol);
         println!("Phi over sweep: {}", phi);
+        let logline = format!("{} {} {}", schedule.current_sweep, vol, phi);
+        write_sweep_log(&logline);
         save_asc_from_opt(config, &format!("sweep_{}", schedule.current_sweep));
     }
 

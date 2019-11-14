@@ -3,11 +3,32 @@ use rand_xoshiro::Xoshiro256StarStar;
 use rand_distr::{Uniform, Distribution};
 use std::marker::PhantomData;
 use std::fmt::{Debug, Display};
+use std::fs::OpenOptions;
+use std::io::Write;
 use crate::OPT;
 
 const DECREASE_MOD: f64 = 0.9;
 // Value calculated from Mathematica Student 11.2.0.0
 const INCREASE_MOD: f64 = 1.111111111111111;
+
+pub fn write_sweep_log(logline: &str) {
+    if let Some(logroot) = &OPT.logfiles {
+        let mut logpath = logroot.clone();
+        logpath.set_file_name(
+            format!("{}_sweep_log.dat",
+                logroot.file_name().expect("Must give valid root filename for logfile")
+                    .to_str().expect("Valid utf-8")
+            ));
+        // Referenced rust docs for std
+        let mut logfile = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(logpath)
+            .expect("Must be able to write to logfile");
+        writeln!(&mut logfile, "{}", logline)
+            .expect("Failed write to logfile");
+    }
+}
 
 #[derive(Debug)]
 pub struct Schedule<P> {
