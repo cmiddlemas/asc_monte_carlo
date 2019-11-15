@@ -11,12 +11,14 @@ use chrono::prelude::*;
 
 mod asc;
 mod disks;
+mod ellipses;
 mod schedule;
 mod spheres;
 mod ellipsoids;
 
 use asc::{Asc, Particle, save_asc_from_opt};
 use disks::Disk;
+use ellipses::Ellipse;
 use spheres::Sphere;
 use ellipsoids::Ellipsoid;
 use schedule::Schedule;
@@ -216,7 +218,15 @@ fn main() {
     match OPT.dimension {
         2 => {
             if OPT.ellipsoid {
-                panic!("2d ellipse packing not implemented yet!");
+                let config = if let Some(path) = &OPT.initfile {
+                    Asc::from_file(path)
+                } else {
+                    println!("Running rsa...");
+                    let shape = Ellipse::make_shape(OPT.a_semi, OPT.b_semi);
+                    let init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
+                    Asc::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng)
+                };
+                make_and_run_schedule(config, &mut rng);
             } else {
                 let config = if let Some(path) = &OPT.initfile {
                     Asc::from_file(path)
