@@ -172,7 +172,26 @@ fn make_and_run_schedule<P: Particle + Clone + Debug + Display + Send + Sync>
 
 fn consume<T>(_arg: T) {}
 
+// From 
+// https://stackoverflow.com/questions/39204908/how-to-check-release-debug-builds-using-cfg-in-rust
+// and
+// https://vallentin.io/2019/06/06/versioning
+#[cfg(debug_assertions)]
+const BUILD_MODE: &str = "debug";
+#[cfg(not(debug_assertions))]
+const BUILD_MODE: &str = "release";
+
 fn main() {
+// Print out build time information
+    println!("Build info for asc_monte_carlo:");
+    println!("Commit SHA: {}", env!("VERGEN_SHA"));
+    println!("Commit date: {}", env!("VERGEN_COMMIT_DATE"));
+    println!("Version: {}", env!("VERGEN_SEMVER"));
+    println!("Build: {}", BUILD_MODE);
+    println!("Build time: {}", env!("VERGEN_BUILD_TIMESTAMP"));
+    println!("Target: {}", env!("VERGEN_TARGET_TRIPLE"));
+    println!("Clean working directory for build: {}", env!("WD_IS_CLEAN"));
+    println!("Start program:\n");
 // Immediately read command line
     consume(&*OPT);
 
