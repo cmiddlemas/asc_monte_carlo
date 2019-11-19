@@ -85,10 +85,12 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
         };
         
         // Clamp strain parameters if needed
-        for val in schedule.cell_param.iter_mut() {
-            if *val > 0.01 {
-                println!("Clamping a strain parameter to 0.01!");
-                *val = 0.01;
+        if !OPT.no_clamp {
+            for val in schedule.cell_param.iter_mut() {
+                if *val > 0.01 {
+                    println!("Clamping a strain parameter to 0.01!");
+                    *val = 0.01;
+                }
             }
         }
 
@@ -150,11 +152,13 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
                     *val *= INCREASE_MOD;
                 }
             }
-
-            for val in self.cell_param.iter_mut() {
-                if *val > 0.01 {
-                    println!("Clamping a strain parameter to 0.01!");
-                    *val = 0.01;
+            
+            if !OPT.no_clamp {
+                for val in self.cell_param.iter_mut() {
+                    if *val > 0.01 {
+                        println!("Clamping a strain parameter to 0.01!");
+                        *val = 0.01;
+                    }
                 }
             }
             println!("Params are (p,c): {:?}, {:?}", self.particle_param, self.cell_param);

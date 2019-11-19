@@ -142,6 +142,11 @@ struct Opt {
     /// still must specify -d and --ellipsoid correctly
     #[structopt(long)]
     initfile: Option<PathBuf>,
+
+    /// Turns off clamping of strain parameters, warning, may
+    /// violate equilibrium conditions
+    #[structopt(long)]
+    no_clamp: bool,
 }
 
 lazy_static! {
