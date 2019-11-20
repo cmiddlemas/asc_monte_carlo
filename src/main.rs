@@ -184,11 +184,15 @@ const BUILD_MODE: &str = "release";
 fn main() {
 // Print out build time information
     println!("Build info for asc_monte_carlo:");
+    println!("Using make: {}", env!("Q_USING_MAKE"));
+    println!("Cargo version: {}", env!("C_VER"));
     println!("Commit SHA: {}", env!("VERGEN_SHA"));
     println!("Commit date: {}", env!("VERGEN_COMMIT_DATE"));
     println!("Version: {}", env!("VERGEN_SEMVER"));
     println!("Build: {}", BUILD_MODE);
     println!("Build time: {}", env!("VERGEN_BUILD_TIMESTAMP"));
+    println!("Compiler version: {}", env!("V_RUSTC"));
+    println!("RUSTFLAGS: {}", env!("S_RUSTFLAGS"));
     println!("Target: {}", env!("VERGEN_TARGET_TRIPLE"));
     println!("Clean working directory for build: {}", env!("WD_IS_CLEAN"));
     println!("Start program:\n");

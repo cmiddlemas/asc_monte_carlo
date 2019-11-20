@@ -1,7 +1,8 @@
 // From vergen documentation
 extern crate vergen;
+extern crate rustc_version;
 use std::process::Command;
-
+use rustc_version::version;
 use vergen::{ConstantsFlags, generate_cargo_keys};
 
 fn main() {
@@ -21,5 +22,22 @@ fn main() {
         println!("cargo:rustc-env=WD_IS_CLEAN=true");
     } else {
         println!("cargo:rustc-env=WD_IS_CLEAN=false");
+    }
+    let cargo_out = Command::new(env!("CARGO"))
+        .arg("--version")
+        .output()
+        .expect("Can run cargo");
+    println!("cargo:rustc-env=C_VER={}", std::str::from_utf8(&cargo_out.stdout).unwrap());
+    // https://stackoverflow.com/questions/35806568/is-there-a-way-to-detect-the-compiler-version-from-within-a-rust-program
+    println!("cargo:rustc-env=V_RUSTC={}", version().unwrap());
+    println!("cargo:rustc-env=S_RUSTFLAGS={:?}", option_env!("RUSTFLAGS"));
+    // Because of
+    // https://github.com/rust-lang/cargo/issues/7169
+    // this is a hack to get a proxy for whether
+    // --locked was run on a cargo install
+    if let Some(val) = option_env!("USING_MAKE") {
+        println!("cargo:rustc-env=Q_USING_MAKE={}", val);
+    } else {
+        println!("cargo:rustc-env=Q_USING_MAKE=false");
     }
 }

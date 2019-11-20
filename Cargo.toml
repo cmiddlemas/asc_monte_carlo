@@ -7,6 +7,7 @@ build = "build.rs"
 
 [build-dependencies]
 vergen = "3"
+rustc_version = "0.2"
 
 [dependencies]
 rand = "0.7.0"
