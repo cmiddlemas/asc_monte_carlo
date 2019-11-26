@@ -13,7 +13,7 @@ use std::io::{Write, BufWriter, BufReader, BufRead};
 use std::path::PathBuf;
 use rayon::prelude::*;
 use rand_distr::{Uniform, Normal, Distribution};
-use nalgebra::Matrix3;
+use nalgebra::{Matrix2, Matrix3};
 use crate::schedule::Schedule;
 use crate::OPT;
 
@@ -318,11 +318,16 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
                 let iso = iso_dist.sample(rng);
                 let shear = shear_dist.sample(rng);
                 let axi = axi_dist.sample(rng);
-                let strain = [iso + axi, shear, shear, iso - axi];
+                let strain = Matrix2::from_row_slice(
+                    &[iso + axi, shear, shear, iso - axi]
+                );
                 // Change unit cell
-                for (e, s) in self.cell.iter_mut().zip(strain.iter()) {
-                    *e += *s;
-                }
+                // Implicit transposition in read order
+                // Noticed that this is necessary due to older
+                // group code, courtesy of Duyu, Steve, and Yang
+                let current_cell = Matrix2::from_column_slice(&self.cell);
+                let new_cell = current_cell + strain*current_cell;
+                self.cell = new_cell.as_slice().to_vec();
             }
             3 => {
                 // Choose strain
@@ -342,13 +347,14 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
                     _ => unreachable!(),
                 }
                 
-                let strain = [d1, shear1, shear2,
-                              shear1, d2, shear3,
-                              shear2, shear3, d3];
+                let strain = Matrix3::from_row_slice(&[d1, shear1, shear2,
+                                                       shear1, d2, shear3,
+                                                       shear2, shear3, d3]);
                 // Change unit cell
-                for (e, s) in self.cell.iter_mut().zip(strain.iter()) {
-                    *e += *s;
-                }
+                // Implicit transposition in read order
+                let current_cell = Matrix3::from_column_slice(&self.cell);
+                let new_cell = current_cell + strain*current_cell;
+                self.cell = new_cell.as_slice().to_vec();
             }
             _ => unimplemented!(),
         }

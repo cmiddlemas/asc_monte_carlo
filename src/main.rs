@@ -181,10 +181,15 @@ const BUILD_MODE: &str = "debug";
 #[cfg(not(debug_assertions))]
 const BUILD_MODE: &str = "release";
 
+#[cfg(feature = "using_make")]
+const USING_MAKE: &str = "true";
+#[cfg(not(feature = "using_make"))]
+const USING_MAKE: &str = "false";
+
 fn main() {
 // Print out build time information
     println!("Build info for asc_monte_carlo:");
-    println!("Using make: {}", env!("Q_USING_MAKE"));
+    println!("Using make: {}", USING_MAKE);
     println!("Cargo version: {}", env!("C_VER"));
     println!("Commit SHA: {}", env!("VERGEN_SHA"));
     println!("Commit date: {}", env!("VERGEN_COMMIT_DATE"));

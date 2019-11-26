@@ -5,6 +5,10 @@ authors = ["Timothy Middlemas <tm17@princeton.edu>"]
 edition = "2018"
 build = "build.rs"
 
+# https://stackoverflow.com/questions/27632660/how-do-i-use-conditional-compilation-with-cfg-and-cargo
+[features]
+using_make = []
+
 [build-dependencies]
 vergen = "3"
 rustc_version = "0.2"

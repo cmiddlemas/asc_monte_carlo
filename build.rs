@@ -17,7 +17,6 @@ fn main() {
         .arg("--porcelain")
         .output()
         .expect("Can run git command successfully");
-
     if out.stdout.is_empty() {
         println!("cargo:rustc-env=WD_IS_CLEAN=true");
     } else {
@@ -31,13 +30,4 @@ fn main() {
     // https://stackoverflow.com/questions/35806568/is-there-a-way-to-detect-the-compiler-version-from-within-a-rust-program
     println!("cargo:rustc-env=V_RUSTC={}", version().unwrap());
     println!("cargo:rustc-env=S_RUSTFLAGS={:?}", option_env!("RUSTFLAGS"));
-    // Because of
-    // https://github.com/rust-lang/cargo/issues/7169
-    // this is a hack to get a proxy for whether
-    // --locked was run on a cargo install
-    if let Some(val) = option_env!("USING_MAKE") {
-        println!("cargo:rustc-env=Q_USING_MAKE={}", val);
-    } else {
-        println!("cargo:rustc-env=Q_USING_MAKE=false");
-    }
 }
