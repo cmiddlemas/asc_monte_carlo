@@ -9,4 +9,4 @@ build :
 	cargo clean; cargo build --features using_make --release
 
 install :
-	cargo clean; USING_MAKE=true cargo install --features using_make --locked --force --path . 
+	cargo clean; cargo install --features using_make --locked --force --path .
