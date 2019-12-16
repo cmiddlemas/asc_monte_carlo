@@ -30,6 +30,17 @@ const PI: f64 = 3.141592653589793;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "asc_monte_carlo")]
 struct Opt {
+    /// Check overlap, just read input file and check overlap
+    /// must specify -d, --ellipsoid, and --initfile
+    #[structopt(long)]
+    check_overlap: bool,
+    
+    /// Near overlap tol
+    /// Only used with --check_overlap
+    /// Default value corresponds to 1% overlap
+    #[structopt(long, default_value = "0.0201")]
+    near_overlap_tol: f64,
+
     /// Dimension
     #[structopt(short = "d", long, default_value = "3")]
     dimension: usize,
@@ -147,6 +158,18 @@ struct Opt {
     /// violate equilibrium conditions
     #[structopt(long)]
     no_clamp: bool,
+
+    /// Brent absolute tolerance
+    #[structopt(long, default_value = "1e-7")]
+    brent_abs_tol: f64,
+
+    /// Brent relative tolerance
+    #[structopt(long, default_value = "0.0")]
+    brent_rel_tol: f64,
+
+    /// Brent max iterations
+    #[structopt(long, default_value = "100")]
+    brent_max_iter: usize,
 }
 
 lazy_static! {
@@ -155,19 +178,24 @@ lazy_static! {
 
 fn make_and_run_schedule<P: Particle + Clone + Debug + Display + Send + Sync>
         (mut config: Asc<P>, rng: &mut Xoshiro256StarStar) {
-    println!("Initial Configuration:");
-    config.print_asc();
-    save_asc_from_opt(&config, "initial");
-    let mut schedule = Schedule::make();
-    println!("Running schedule:");
-    println!("{:?}", schedule);
-    schedule.run(&mut config, rng);
-    println!("Ended schedule:");
-    println!("{:?}", schedule);
-    println!("Final Configuration:");
-    config.print_asc();
-    save_asc_from_opt(&config, "final");
-    println!("Ending program at: {}", Utc::now());
+    if OPT.check_overlap {
+        let validity = config.is_valid();
+        println!("Found configuration is {}", validity);
+    } else {
+        println!("Initial Configuration:");
+        config.print_asc();
+        save_asc_from_opt(&config, "initial");
+        let mut schedule = Schedule::make();
+        println!("Running schedule:");
+        println!("{:?}", schedule);
+        schedule.run(&mut config, rng);
+        println!("Ended schedule:");
+        println!("{:?}", schedule);
+        println!("Final Configuration:");
+        config.print_asc();
+        save_asc_from_opt(&config, "final");
+        println!("Ending program at: {}", Utc::now());
+    }
 }
 
 fn consume<T>(_arg: T) {}

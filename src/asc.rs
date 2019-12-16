@@ -285,7 +285,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
         }
     }
 
-    fn is_valid(&self) -> bool {
+    pub fn is_valid(&self) -> bool {
         if OPT.parallelize_inner {
             self.p_vec.iter()
                 .map(|p| self.check_particle(p))

@@ -8,11 +8,7 @@ use nalgebra::{Matrix2, Vector2};
 use rgsl::{Minimizer, MinimizerType, Value, minimizer};
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
-use crate::PI;
-
-const INTERVAL_ABS_TOL: f64 = 1e-7f64;
-const INTERVAL_REL_TOL: f64 = 0f64;
-const BRENT_MAX_ITER: usize = 100usize;
+use crate::{PI,OPT};
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
@@ -135,13 +131,13 @@ impl Particle for Ellipse {
         let mut param_tuple = (x_a_inv, x_b_inv, r_ab);
         let mut param_tuple2 = param_tuple.clone();
         if pw_overlap(0.0, &mut param_tuple2) < pw_overlap(1.0, &mut param_tuple2) {
-            lambda = 0.0 + INTERVAL_ABS_TOL;
+            lambda = 0.0 + OPT.brent_abs_tol;
         } else {
-            lambda = 1.0 - INTERVAL_ABS_TOL;
+            lambda = 1.0 - OPT.brent_abs_tol;
         }
         min_instance.set(pw_overlap, &mut param_tuple, lambda, lower, upper);
         
-        while status == Value::Continue && iter < BRENT_MAX_ITER {
+        while status == Value::Continue && iter < OPT.brent_max_iter {
             iter += 1;
             status = min_instance.iterate();
             if status != Value::Success {
@@ -149,7 +145,7 @@ impl Particle for Ellipse {
             }
             lower = min_instance.x_lower();
             upper = min_instance.x_upper();
-            status = minimizer::test_interval(lower, upper, INTERVAL_ABS_TOL, INTERVAL_REL_TOL);
+            status = minimizer::test_interval(lower, upper, OPT.brent_abs_tol, OPT.brent_rel_tol);
             if status == Value::Success || status == Value::Continue {
                 lambda = min_instance.x_minimum();
                 if pw_overlap(lambda, &mut param_tuple2) < 0.0 {
