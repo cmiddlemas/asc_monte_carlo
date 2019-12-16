@@ -101,9 +101,11 @@ impl Particle for Ellipsoid {
         if disp2 <= (self.minor_semi_axis() + other.minor_semi_axis()).powi(2) {
             if OPT.check_overlap {
                 if *self != *other {
-                    println!("Trivial overlap:");
-                    println!("{}", self);
-                    println!("{}", other);
+                    println!("Trivial overlap:\n\
+                        self: {}\n\
+                        other: {}",
+                        self, other
+                    );
                 }
             }
             return true;
@@ -173,22 +175,29 @@ impl Particle for Ellipsoid {
                     if OPT.check_overlap {
                         let pw_val = pw_overlap(lambda, &mut param_tuple2);
                         if -pw_val <= OPT.near_overlap_tol {
-                            println!("Near overlap from brent");
-                            println!("self: {}", self);
-                            println!("other: {}", other);
-                            println!("lambda: {}", lambda);
-                            println!("pw: {}", pw_val);
+                            // From stack overflow 29483365
+                            // https://stackoverflow.com/questions/29483365/what-is-the-syntax-for-a-multiline-string-literal
+                            println!("Near overlap from brent\n\
+                                self: {}\n\
+                                other: {}\n\
+                                lambda: {}\n\
+                                pw: {}",
+                                self, other, lambda, pw_val
+                            );
                         }
                     }
                     return false;
                 } else {
                     if status == Value::Success {
                         if OPT.check_overlap {
-                            println!("Non-trivial overlap");
-                            println!("self: {}", self);
-                            println!("other: {}", other);
-                            println!("lambda: {}", lambda);
-                            println!("pw: {}", pw_overlap(lambda, &mut param_tuple2));
+                            println!("Non-trivial overlap\n\
+                                self: {}\n\
+                                other: {}\n\
+                                lambda: {}\n\
+                                pw: {}",
+                                self, other, lambda,
+                                pw_overlap(lambda, &mut param_tuple2)
+                            );
                         }
                         return true;
                     }
