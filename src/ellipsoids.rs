@@ -118,7 +118,8 @@ impl Particle for Ellipsoid {
         // based on example
         // https://github.com/GuillaumeGomez/rust-GSL/blob/master/examples/minimization.rs
         let mut iter = 0usize;
-        let mut lambda;
+        //let mut lambda;
+        let mut lambda = 0.5;
         let mut upper = 1.0f64;
         let mut lower = 0.0f64;
         let mut status = Value::Continue;
@@ -153,11 +154,11 @@ impl Particle for Ellipsoid {
         let r_ab = Vector3::new(disp_x, disp_y, disp_z);
         let mut param_tuple = (x_a_inv, x_b_inv, r_ab);
         let mut param_tuple2 = param_tuple.clone();
-        if pw_overlap(0.0, &mut param_tuple2) < pw_overlap(1.0, &mut param_tuple2) {
-            lambda = 0.0 + OPT.brent_abs_tol;
-        } else {
-            lambda = 1.0 - OPT.brent_abs_tol;
-        }
+        //if pw_overlap(0.0, &mut param_tuple2) < pw_overlap(1.0, &mut param_tuple2) {
+        //    lambda = 0.0 + OPT.brent_abs_tol;
+        //} else {
+        //    lambda = 1.0 - OPT.brent_abs_tol;
+        //}
         min_instance.set(pw_overlap, &mut param_tuple, lambda, lower, upper);
         
         while status == Value::Continue && iter < OPT.brent_max_iter {
@@ -169,11 +170,11 @@ impl Particle for Ellipsoid {
             lower = min_instance.x_lower();
             upper = min_instance.x_upper();
             status = minimizer::test_interval(lower, upper, OPT.brent_abs_tol, OPT.brent_rel_tol);
-            if status == Value::Success || status == Value::Continue {
-                lambda = min_instance.x_minimum();
-                if pw_overlap(lambda, &mut param_tuple2) < 0.0 {
-                    if OPT.check_overlap {
-                        let pw_val = pw_overlap(lambda, &mut param_tuple2);
+            if OPT.check_overlap {
+                if status == Value::Success {
+                    lambda = min_instance.x_minimum();
+                    let pw_val = pw_overlap(lambda, &mut param_tuple2);
+                    if pw_val < 0.0 {
                         if -pw_val <= OPT.near_overlap_tol {
                             // From stack overflow 29483365
                             // https://stackoverflow.com/questions/29483365/what-is-the-syntax-for-a-multiline-string-literal
@@ -185,21 +186,27 @@ impl Particle for Ellipsoid {
                                 self, other, lambda, pw_val
                             );
                         }
-                    }
-                    return false;
-                } else {
-                    if status == Value::Success {
-                        if OPT.check_overlap {
-                            println!("Non-trivial overlap\n\
-                                self: {}\n\
-                                other: {}\n\
-                                lambda: {}\n\
-                                pw: {}",
-                                self, other, lambda,
-                                pw_overlap(lambda, &mut param_tuple2)
-                            );
-                        }
+                        return false;
+                    } else {
+                        println!("Non-trivial overlap\n\
+                            self: {}\n\
+                            other: {}\n\
+                            lambda: {}\n\
+                            pw: {}",
+                            self, other, lambda, pw_val
+                        );
                         return true;
+                    }
+                }
+            } else {
+                if status == Value::Success || status == Value::Continue {
+                    lambda = min_instance.x_minimum();
+                    if pw_overlap(lambda, &mut param_tuple2) < 0.0 {
+                        return false;
+                    } else {
+                        if status == Value::Success {
+                            return true;
+                        }
                     }
                 }
             }
