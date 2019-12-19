@@ -260,4 +260,12 @@ impl Particle for Ellipse {
         schedule.running_obs[0] += 1.0;
         schedule.running_obs[1] += config.cell_volume();
     }
+
+    fn hint_lower(&self) -> f64 {
+        self.minor_semi_axis()
+    }
+
+    fn hint_upper(&self) -> f64 {
+        self.major_semi_axis()
+    }
 }

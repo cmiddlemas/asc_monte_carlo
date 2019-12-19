@@ -40,6 +40,8 @@ impl Ellipsoid {
         self.pos = (u*lat_c).as_slice().try_into().unwrap();
     }
 
+    // https://stackoverflow.com/questions/28446632/how-do-i-get-the-minimum-or-maximum-value-of-an-iterator-containing-floating-poi
+    // https://users.rust-lang.org/t/why-are-not-min-and-max-macros-in-the-std/9730
     fn minor_semi_axis(&self) -> f64 {
         *self.semi_axes.iter()
             .min_by(|a, b| a.partial_cmp(b).expect("No NaNs"))
@@ -336,5 +338,13 @@ impl Particle for Ellipsoid {
     {
         schedule.running_obs[0] += 1.0;
         schedule.running_obs[1] += config.cell_volume();
+    }
+
+    fn hint_lower(&self) -> f64 {
+        self.minor_semi_axis()
+    }
+
+    fn hint_upper(&self) -> f64 {
+        self.major_semi_axis()
     }
 }

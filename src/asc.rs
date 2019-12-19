@@ -463,4 +463,10 @@ where Self: std::clone::Clone + std::marker::Sized {
         config: &Asc<Self>,
         old_c: &[f64]
     );
+
+    // Lower bound on dimension of particle
+    fn hint_lower(&self) -> f64;
+
+    // Upper bound on dimension of particle
+    fn hint_upper(&self) -> f64;
 }

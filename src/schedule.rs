@@ -50,20 +50,12 @@ pub struct Schedule<P> {
 
 // https://stackoverflow.com/questions/42613974/why-cant-i-add-a-blanket-impl-on-a-trait-with-a-type-parameter
 impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
-    pub fn make() -> Schedule<P> {
+    pub fn make(particle: &P) -> Schedule<P> {
         // Decide on particle move parameters
         let mut p_param = Vec::new();
-        if OPT.ellipsoid {
-            // https://users.rust-lang.org/t/why-are-not-min-and-max-macros-in-the-std/9730
-            // https://stackoverflow.com/questions/28446632/how-do-i-get-the-minimum-or-maximum-value-of-an-iterator-containing-floating-poi
-            let minor_axis = *[OPT.a_semi, OPT.b_semi, OPT.c_semi].iter()
-                .min_by(|a,b| a.partial_cmp(b).expect("No NaNs"))
-                .unwrap();
-            p_param.push(OPT.dtrans*minor_axis);
-            p_param.push(OPT.drot);
-        } else {
-            p_param.push(OPT.dtrans*OPT.radius);
-        }
+        let size_hint = particle.hint_lower();
+        p_param.push(OPT.dtrans*size_hint);
+        p_param.push(OPT.drot);
         
         // Make initial schedule
         let mut schedule = Schedule {
