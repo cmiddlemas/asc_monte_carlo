@@ -120,8 +120,8 @@ impl Particle for Ellipsoid {
         // based on example
         // https://github.com/GuillaumeGomez/rust-GSL/blob/master/examples/minimization.rs
         let mut iter = 0usize;
-        //let mut lambda;
-        let mut lambda = 0.5;
+        let mut lambda;
+        //let mut lambda = 0.5;
         let mut upper = 1.0f64;
         let mut lower = 0.0f64;
         let mut status = Value::Continue;
@@ -156,11 +156,11 @@ impl Particle for Ellipsoid {
         let r_ab = Vector3::new(disp_x, disp_y, disp_z);
         let mut param_tuple = (x_a_inv, x_b_inv, r_ab);
         let mut param_tuple2 = param_tuple.clone();
-        //if pw_overlap(0.0, &mut param_tuple2) < pw_overlap(1.0, &mut param_tuple2) {
-        //    lambda = 0.0 + OPT.brent_abs_tol;
-        //} else {
-        //    lambda = 1.0 - OPT.brent_abs_tol;
-        //}
+        if pw_overlap(0.0, &mut param_tuple2) < pw_overlap(1.0, &mut param_tuple2) {
+            lambda = 0.0 + OPT.brent_abs_tol;
+        } else {
+            lambda = 1.0 - OPT.brent_abs_tol;
+        }
         min_instance.set(pw_overlap, &mut param_tuple, lambda, lower, upper);
         
         while status == Value::Continue && iter < OPT.brent_max_iter {
