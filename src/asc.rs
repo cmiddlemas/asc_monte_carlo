@@ -392,8 +392,9 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
     {
         let r_idx: usize = Uniform::new(0, self.p_vec.len())
             .sample(rng);
-        let old_p = self.p_vec[r_idx]
+        let (old_p, move_type) = self.p_vec[r_idx]
             .perturb(&self.cell, &schedule.particle_param, rng);
+        schedule.particle_tries[move_type] += 1;
         if self.check_particle(&self.p_vec[r_idx]) > 1 { //reject
             self.p_vec[r_idx] = old_p; //roll back
             P::sample_obs_failed_move(
@@ -408,6 +409,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> {
                 r_idx,
                 &old_p
             );
+            schedule.particle_accepts[move_type] += 1;
             true
         }
     }
@@ -431,11 +433,15 @@ where Self: std::clone::Clone + std::marker::Sized {
     
     // Returns a copy of the original coordinates,
     // changes the given object
+    // Also returns the move_type, which is
+    // a usize corresponding to which particle param
+    // the move corresponded to, or always zero if
+    // OPT.combined_move is true
     fn perturb(&mut self,
                cell: &[f64],
                param: &[f64],
                rng: &mut Xoshiro256StarStar
-    ) -> Self;
+    ) -> (Self, usize);
 
     fn apply_strain(&mut self, old_cell: &[f64], new_cell: &[f64]);
    

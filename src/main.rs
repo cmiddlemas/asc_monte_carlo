@@ -95,6 +95,12 @@ struct Opt {
     #[structopt(long, default_value = "1000")]
     moves: usize,
 
+    /// Decides whether to use combined or separate
+    /// translations/rotations, only applicable to
+    /// ellipsoids
+    #[structopt(long)]
+    combined_move: bool,
+
     /// Probability of doing a cell move
     #[structopt(long, default_value = "0.001")]
     pcell: f64,
@@ -110,6 +116,12 @@ struct Opt {
     /// addition algorithm in 3d
     #[structopt(long, default_value = "0.1")]
     drot: f64,
+
+    /// Rotation cap to prevent unnecessary runaway rotations
+    /// in "uniform" (dilute fluid) regime,
+    /// only does anything if --combined_move is *inactive*
+    #[structopt(long, default_value = "100.0")]
+    drot_cap: f64,
 
     /// Radius of spherical particles, only used with RSA generator
     #[structopt(long, default_value = "1.0")]

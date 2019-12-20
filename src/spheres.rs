@@ -92,7 +92,7 @@ impl Particle for Sphere {
                cell: &[f64],
                param: &[f64],
                rng: &mut Xoshiro256StarStar,
-    ) -> Self
+    ) -> (Self, usize)
     {
         let old_sphere = self.clone();
         let normal = Normal::new(0.0, param[0]).unwrap();
@@ -101,7 +101,7 @@ impl Particle for Sphere {
         self.pos[2] += normal.sample(rng);
         // Handle pbc
         self.apply_pbc(cell);
-        old_sphere
+        (old_sphere, 0)
     }
 
     // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)

@@ -183,21 +183,33 @@ impl Particle for Ellipse {
                cell: &[f64],
                param: &[f64],
                rng: &mut Xoshiro256StarStar,
-    ) -> Self
+    ) -> (Self, usize)
     {
         let old_ell = self.clone();
         let normal_trans = Normal::new(0.0, param[0]).expect("Need valid translation sigma");
         let normal_rot = Normal::new(0.0, param[1]).expect("Need valid rotation sigma");
+        let uni_dist = Uniform::new(0.0, 1.0);
+        // Equally likely to be a rotation or translation
+        // 0 -> translation, 1 -> rotation
+        let move_type = uni_dist.sample(rng) <= 0.5;
         // Apply translation
-        for x in &mut self.pos {
-            *x += normal_trans.sample(rng);
+        if OPT.combined_move || !move_type {
+            for x in &mut self.pos {
+                *x += normal_trans.sample(rng);
+            }
+            self.apply_pbc(cell);
         }
-        // Handle pbc
-        self.apply_pbc(cell);
         // Apply rotation
-        self.theta += normal_rot.sample(rng);
-        self.theta -= 2.0*PI*(self.theta/(2.0*PI)).floor();
-        old_ell
+        if OPT.combined_move || move_type {
+            self.theta += normal_rot.sample(rng);
+            self.theta -= 2.0*PI*(self.theta/(2.0*PI)).floor();
+        }
+
+        if OPT.combined_move {
+            (old_ell, 0)
+        } else {
+            (old_ell, move_type as usize)
+        }
     }
 
     // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)

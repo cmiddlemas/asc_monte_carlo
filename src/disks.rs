@@ -92,7 +92,7 @@ impl Particle for Disk {
                cell: &[f64],
                param: &[f64],
                rng: &mut Xoshiro256StarStar,
-    ) -> Self
+    ) -> (Self, usize)
     {
         let old_disk = self.clone();
         let normal = Normal::new(0.0, param[0]).unwrap();
@@ -100,7 +100,7 @@ impl Particle for Disk {
         self.pos[1] += normal.sample(rng);
         // Handle pbc
         self.apply_pbc(cell);
-        old_disk
+        (old_disk, 0)
     }
 
     // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)

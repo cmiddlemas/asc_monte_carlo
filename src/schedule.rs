@@ -33,8 +33,8 @@ pub fn write_sweep_log(logline: &str) {
 #[derive(Debug)]
 pub struct Schedule<P> {
     pub current_sweep: usize,
-    particle_accepts: usize,
-    particle_tries: usize,
+    pub particle_accepts: Vec<usize>,
+    pub particle_tries: Vec<usize>,
     cell_accepts: usize,
     cell_tries: usize,
     n_sweeps: usize,
@@ -60,8 +60,8 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
         // Make initial schedule
         let mut schedule = Schedule {
             current_sweep: 0,
-            particle_accepts: 0,
-            particle_tries: 0,
+            particle_accepts: vec![0,0],
+            particle_tries: vec![0,0],
             cell_accepts: 0,
             cell_tries: 0,
             n_sweeps: OPT.sweeps,
@@ -86,6 +86,14 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
             }
         }
 
+        // Cap rotations if need be
+        if !OPT.combined_move {
+            if schedule.particle_param[1] > OPT.drot_cap {
+                println!("Capping rotation");
+                schedule.particle_param[1] = OPT.drot_cap;
+            }
+        }
+
         schedule
     }
 
@@ -102,9 +110,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
                         self.cell_accepts += 1;
                     }
                 } else {
-                    self.particle_tries += 1;
                     if config.try_particle_move(self, rng) {
-                        self.particle_accepts += 1;
                     }
                 }
             }
@@ -118,20 +124,41 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
         // Adjust MC move parameters based on acceptance ratio
         // This simple algorithm keeps ratio between parameters the same
         if OPT.adjust {
-            let p_acc_ratio = self.particle_accepts as f64/(self.particle_tries as f64);
+            let p_acc_ratio_0 = self.particle_accepts[0] as f64/(self.particle_tries[0] as f64);
+            let p_acc_ratio_1 = self.particle_accepts[1] as f64/(self.particle_tries[1] as f64);
             let c_acc_ratio = self.cell_accepts as f64/(self.cell_tries as f64);
-            println!("Particle, cell accept ratio: {}, {}", p_acc_ratio, c_acc_ratio);
+            println!("Translation (combined), rotation, cell accept ratio: {}, {}, {}",
+                p_acc_ratio_0, p_acc_ratio_1, c_acc_ratio
+            );
             // For next sweep
-            self.particle_accepts = 0; self.particle_tries = 0;
+            self.particle_accepts = vec![0,0]; self.particle_tries = vec![0,0];
             self.cell_accepts = 0; self.cell_tries = 0;
 
-            if p_acc_ratio < OPT.adjust_lower {
-                for val in self.particle_param.iter_mut() {
-                    *val *= DECREASE_MOD;
+            if OPT.combined_move { // only use acc_ratio_0, for combined move
+                if p_acc_ratio_0 < OPT.adjust_lower {
+                    for val in self.particle_param.iter_mut() {
+                        *val *= DECREASE_MOD;
                 }
-            } else if p_acc_ratio > OPT.adjust_upper {
-                for val in self.particle_param.iter_mut() {
-                    *val *= INCREASE_MOD;
+                } else if p_acc_ratio_0 > OPT.adjust_upper {
+                    for val in self.particle_param.iter_mut() {
+                        *val *= INCREASE_MOD;
+                    }
+                }
+            } else {
+                if p_acc_ratio_0 < OPT.adjust_lower {
+                    self.particle_param[0] *= DECREASE_MOD;
+                } else if p_acc_ratio_0 > OPT.adjust_upper {
+                    self.particle_param[0] *= INCREASE_MOD;
+                }
+
+                if p_acc_ratio_1 < OPT.adjust_lower {
+                    self.particle_param[1] *= DECREASE_MOD;
+                } else if p_acc_ratio_1 > OPT.adjust_upper {
+                    self.particle_param[1] *= INCREASE_MOD;
+                }
+                if self.particle_param[1] > OPT.drot_cap {
+                    println!("Capping rotations");
+                    self.particle_param[1] = OPT.drot_cap;
                 }
             }
 
