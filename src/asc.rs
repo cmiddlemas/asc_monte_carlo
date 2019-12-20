@@ -27,7 +27,7 @@ fn calc_offset(n: usize, dim: usize, overbox: usize, cell: &[f64]) -> Vec<f64>
         let mut coord = 0.0;
         let mut k = n as i32;
         for j in 0..dim {
-            let scalar = (k % copies - 1) as f64;
+            let scalar = (k % copies - overbox as i32) as f64;
             k /= copies;
             coord += scalar*cell[dim*i + j];
         }
