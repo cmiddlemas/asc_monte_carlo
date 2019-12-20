@@ -6,6 +6,8 @@ use std::fmt;
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
 use crate::PI;
+use nalgebra::{Matrix2, Vector2};
+use std::convert::TryInto;
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
@@ -22,23 +24,16 @@ impl Disk {
     // c is the unit cell, given as (u_rc
     // u_00 u_01 u_10 u_11 
     fn apply_pbc(&mut self, c: &[f64]) {
-        const DIM: usize = 2;
+        let u = Matrix2::from_column_slice(c);
+        let u_inv = u.lu().try_inverse().expect("unit cell matrix must be invertible");
+        let r = Vector2::from_column_slice(&self.pos);
         // convert to lattice coords
-        // https://www.mathsisfun.com/algebra/matrix-inverse.html
-        let det = c[DIM*0 + 0]*c[DIM*1 + 1] 
-                - c[DIM*1 + 0]*c[DIM*0 + 1];
-        let mut lat_x = (c[DIM*1 + 1]*self.pos[0] 
-               - c[DIM*0 + 1]*self.pos[1])
-                /det;
-        let mut lat_y = (-c[DIM*1 + 0]*self.pos[0]
-                 +c[DIM*0 + 0]*self.pos[1])
-                /det;
+        let mut lat_c = u_inv*r;
         // put lattice coords back in unit square
-        lat_x = lat_x - lat_x.floor();
-        lat_y = lat_y - lat_y.floor();
+        lat_c.apply(|x| x - x.floor());
         // convert back to euclidean coords
-        self.pos[0] = lat_x*c[DIM*0 + 0] + lat_y*c[DIM*0 + 1];
-        self.pos[1] = lat_x*c[DIM*1 + 0] + lat_y*c[DIM*1 + 1];
+        // https://stackoverflow.com/questions/25428920/how-to-get-a-slice-as-an-array-in-rust
+        self.pos = (u*lat_c).as_slice().try_into().unwrap();
     }
 }
 
@@ -83,8 +78,8 @@ impl Particle for Disk {
         let lat_y = uni_dist.sample(rng);
         // Turn lattice coords into euclidean coords
         Disk { pos: 
-            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*0 + 1],
-              lat_x*cell[DIM*1 + 0] + lat_y*cell[DIM*1 + 1]],   
+            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*1 + 0],
+              lat_x*cell[DIM*0 + 1] + lat_y*cell[DIM*1 + 1]],
             radius: self.radius }
     }
 
@@ -105,20 +100,15 @@ impl Particle for Disk {
 
     // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)
     fn apply_strain(&mut self, old_cell: &[f64], new_cell: &[f64]) {
-        const DIM: usize = 2;
-        // convert to lattice coords
-        // https://www.mathsisfun.com/algebra/matrix-inverse.html
-        let det = old_cell[DIM*0 + 0]*old_cell[DIM*1 + 1] 
-                - old_cell[DIM*1 + 0]*old_cell[DIM*0 + 1];
-        let lat_x = (old_cell[DIM*1 + 1]*self.pos[0] 
-               - old_cell[DIM*0 + 1]*self.pos[1])
-                /det;
-        let lat_y = (-old_cell[DIM*1 + 0]*self.pos[0]
-                 +old_cell[DIM*0 + 0]*self.pos[1])
-                /det;
-        // set to new cell
-        self.pos[0] = lat_x*new_cell[DIM*0 + 0] + lat_y*new_cell[DIM*0 + 1];
-        self.pos[1] = lat_x*new_cell[DIM*1 + 0] + lat_y*new_cell[DIM*1 + 1];
+        // get old lattice coords
+        let u_old_inv = Matrix2::from_column_slice(old_cell)
+            .lu()
+            .try_inverse()
+            .expect("Unit cells must be invertible");
+        let lat_c = u_old_inv*Vector2::from_column_slice(&self.pos);
+        // set to new global coords
+        let u_new = Matrix2::from_column_slice(new_cell);
+        self.pos = (u_new*lat_c).as_slice().try_into().unwrap();
     }
 
     fn init_obs() -> Vec<f64> {

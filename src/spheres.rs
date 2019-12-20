@@ -82,9 +82,9 @@ impl Particle for Sphere {
         let lat_z = uni_dist.sample(rng);
         // Turn lattice coords into euclidean coords
         Sphere { pos: 
-            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*0 + 1] + lat_z*cell[DIM*0 + 2],
-              lat_x*cell[DIM*1 + 0] + lat_y*cell[DIM*1 + 1] + lat_z*cell[DIM*1 + 2],
-              lat_x*cell[DIM*2 + 0] + lat_y*cell[DIM*2 + 1] + lat_z*cell[DIM*2 + 2]],   
+            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*1 + 0] + lat_z*cell[DIM*2 + 0],
+              lat_x*cell[DIM*0 + 1] + lat_y*cell[DIM*1 + 1] + lat_z*cell[DIM*2 + 1],
+              lat_x*cell[DIM*0 + 2] + lat_y*cell[DIM*1 + 2] + lat_z*cell[DIM*2 + 2]],
             radius: self.radius }
     }
 

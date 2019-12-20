@@ -29,7 +29,7 @@ fn calc_offset(n: usize, dim: usize, overbox: usize, cell: &[f64]) -> Vec<f64>
         for j in 0..dim {
             let scalar = (k % copies - overbox as i32) as f64;
             k /= copies;
-            coord += scalar*cell[dim*i + j];
+            coord += scalar*cell[dim*j + i];
         }
         offset.push(coord);
     }
@@ -56,8 +56,9 @@ pub fn save_asc_from_opt<P: Particle + Debug + Display + Send + Sync + Clone>
 }
 
 // cell stored as (dim*row + column)
-// and columns are interpreted as the
-// lattice vectors
+// and each row is interpreted as the
+// coordinates vx vy vz ... of a lattice
+// vector
 #[derive(Clone)]
 pub struct Asc<P> {
     dim: usize, // Dimension of configuration

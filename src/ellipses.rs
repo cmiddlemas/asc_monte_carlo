@@ -27,7 +27,7 @@ impl Ellipse {
     // u_00 u_01 u_10 u_11 in 2d, etc.
     // Need to use nalgebra here
     fn apply_pbc(&mut self, c: &[f64]) {
-        let u = Matrix2::from_row_slice(c).transpose();
+        let u = Matrix2::from_column_slice(c);
         let u_inv = u.lu().try_inverse().expect("unit cell matrix must be invertible");
         let r = Vector2::from_column_slice(&self.pos);
         // convert to lattice coords
@@ -173,8 +173,8 @@ impl Particle for Ellipse {
         let theta = theta_dist.sample(rng);
         // Turn lattice coords into euclidean coords
         Ellipse { pos: 
-            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*0 + 1],
-              lat_x*cell[DIM*1 + 0] + lat_y*cell[DIM*1 + 1]],
+            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*1 + 0],
+              lat_x*cell[DIM*0 + 1] + lat_y*cell[DIM*1 + 1]],
             theta,
             semi_axes: self.semi_axes }
     }
@@ -216,14 +216,13 @@ impl Particle for Ellipse {
     // Also need nalgebra
     fn apply_strain(&mut self, old_cell: &[f64], new_cell: &[f64]) {
         // get old lattice coords
-        let u_old_inv = Matrix2::from_row_slice(old_cell)
-            .transpose()
+        let u_old_inv = Matrix2::from_column_slice(old_cell)
             .lu()
             .try_inverse()
             .expect("Unit cells must be invertible");
         let lat_c = u_old_inv*Vector2::from_column_slice(&self.pos);
         // set to new global coords
-        let u_new = Matrix2::from_row_slice(new_cell).transpose();
+        let u_new = Matrix2::from_column_slice(new_cell);
         self.pos = (u_new*lat_c).as_slice().try_into().unwrap();
     }
 

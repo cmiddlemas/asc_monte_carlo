@@ -244,9 +244,9 @@ impl Particle for Ellipsoid {
         q0 /= qnorm; q1 /= qnorm; q2 /= qnorm; q3 /= qnorm;
         // Turn lattice coords into euclidean coords
         Ellipsoid { pos: 
-            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*0 + 1] + lat_z*cell[DIM*0 + 2],
-              lat_x*cell[DIM*1 + 0] + lat_y*cell[DIM*1 + 1] + lat_z*cell[DIM*1 + 2],
-              lat_x*cell[DIM*2 + 0] + lat_y*cell[DIM*2 + 1] + lat_z*cell[DIM*2 + 2]],
+            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*1 + 0] + lat_z*cell[DIM*2 + 0],
+              lat_x*cell[DIM*0 + 1] + lat_y*cell[DIM*1 + 1] + lat_z*cell[DIM*2 + 1],
+              lat_x*cell[DIM*0 + 2] + lat_y*cell[DIM*1 + 2] + lat_z*cell[DIM*2 + 2]],
             quat: [ q0, q1, q2, q3 ],
             semi_axes: self.semi_axes }
     }
