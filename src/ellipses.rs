@@ -13,9 +13,9 @@ use crate::{PI,OPT};
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
 pub struct Ellipse {
-    pos: [f64; 2], // [x, y, z]
-    theta: f64, // a + bi + cj + dk -> [a, b, c, d]
-    semi_axes: [f64; 2], // for no rot, [x, y, z]
+    pos: [f64; 2], // [x, y]
+    theta: f64,
+    semi_axes: [f64; 2], // for no rot, [x, y]
 }
 
 impl Ellipse {
@@ -25,7 +25,6 @@ impl Ellipse {
 
     // c is the unit cell, given as (u_rc)
     // u_00 u_01 u_10 u_11 in 2d, etc.
-    // Need to use nalgebra here
     fn apply_pbc(&mut self, c: &[f64]) {
         let u = Matrix2::from_column_slice(c);
         let u_inv = u.lu().try_inverse().expect("unit cell matrix must be invertible");
@@ -213,7 +212,6 @@ impl Particle for Ellipse {
     }
 
     // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)
-    // Also need nalgebra
     fn apply_strain(&mut self, old_cell: &[f64], new_cell: &[f64]) {
         // get old lattice coords
         let u_old_inv = Matrix2::from_column_slice(old_cell)
@@ -230,30 +228,30 @@ impl Particle for Ellipse {
         vec![0.0, 0.0] // [samples, sum of volume]
     }
 
-    fn sample_obs_sweep(schedule: &mut Schedule<Self>, config: &Asc<Self>) {
+    fn sample_obs_sweep<C: Asc<Self>>(schedule: &mut Schedule<Self>, config: &C) {
         let vol = schedule.running_obs[1]/schedule.running_obs[0];
         schedule.running_obs = vec![0.0,0.0];
         println!("Cell volume over sweep: {}", vol);
-        let semi_prod: f64 = config.p_vec[0].semi_axes.iter().product();
-        let phi = (config.p_vec.len() as f64)*PI*semi_prod/(vol);
+        let semi_prod: f64 = config.first_particle().semi_axes.iter().product();
+        let phi = (config.n_particles() as f64)*PI*semi_prod/(vol);
         println!("Phi over sweep: {}", phi);
         let logline = format!("{} {} {}", schedule.current_sweep, vol, phi);
         write_sweep_log(&logline);
         save_asc_from_opt(config, &format!("sweep_{}", schedule.current_sweep));
     }
 
-    fn sample_obs_failed_move(
+    fn sample_obs_failed_move<C: Asc<Self>>(
         schedule: &mut Schedule<Self>,
-        config: &Asc<Self>
+        config: &C
     )
     {
         schedule.running_obs[0] += 1.0;
         schedule.running_obs[1] += config.cell_volume();
     }
 
-    fn sample_obs_accepted_pmove(
+    fn sample_obs_accepted_pmove<C: Asc<Self>>(
         schedule: &mut Schedule<Self>,
-        config: &Asc<Self>,
+        config: &C,
         _changed_idx: usize,
         _old_p: &Self
     )
@@ -262,9 +260,9 @@ impl Particle for Ellipse {
         schedule.running_obs[1] += config.cell_volume();
     }
     
-    fn sample_obs_accepted_cmove(
+    fn sample_obs_accepted_cmove<C: Asc<Self>>(
         schedule: &mut Schedule<Self>,
-        config: &Asc<Self>,
+        config: &C,
         _old_c: &[f64]
     )
     {

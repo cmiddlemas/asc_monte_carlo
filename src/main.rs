@@ -16,6 +16,7 @@ mod ellipses;
 mod schedule;
 mod spheres;
 mod ellipsoids;
+mod overbox_list;
 
 use asc::{Asc, Particle, save_asc_from_opt};
 use disks::Disk;
@@ -23,6 +24,7 @@ use ellipses::Ellipse;
 use spheres::Sphere;
 use ellipsoids::Ellipsoid;
 use schedule::Schedule;
+use overbox_list::OverboxList;
 
 // Struct for command line
 #[derive(StructOpt, Debug)]
@@ -198,8 +200,10 @@ lazy_static! {
 
 // Helper functions for command line -----------------------------------------
 
-fn make_and_run_schedule<P: Particle + Clone + Debug + Display + Send + Sync>
-        (mut config: Asc<P>, rng: &mut Xoshiro256StarStar) {
+fn make_and_run_schedule<C, P: Particle + Clone + Debug + Display + Send + Sync>
+        (mut config: C, rng: &mut Xoshiro256StarStar)
+    where C: Asc<P>
+{
     if OPT.check_overlap {
         let validity = config.is_valid();
         println!("Found configuration is {}", validity);
@@ -209,7 +213,7 @@ fn make_and_run_schedule<P: Particle + Clone + Debug + Display + Send + Sync>
             config.print_asc();
         }
         save_asc_from_opt(&config, "initial");
-        let mut schedule = Schedule::make(&config.p_vec[0]);
+        let mut schedule = Schedule::make(config.first_particle());
         println!("Running schedule:");
         println!("{:?}", schedule);
         schedule.run(&mut config, rng);
@@ -316,19 +320,19 @@ fn main() {
         let shape: &str = line_one.last().expect("Valid shape");
         match shape {
             "Ellipse" => {
-                let config: Asc<Ellipse> = Asc::from_file(path);
+                let config: OverboxList<Ellipse> = OverboxList::from_file(path);
                 make_and_run_schedule(config, &mut rng);
             }
             "Disk" => {
-                let config: Asc<Disk> = Asc::from_file(path);
+                let config: OverboxList<Disk> = OverboxList::from_file(path);
                 make_and_run_schedule(config, &mut rng);
             }
             "Ellipsoid" => {
-                let config: Asc<Ellipsoid> = Asc::from_file(path);
+                let config: OverboxList<Ellipsoid> = OverboxList::from_file(path);
                 make_and_run_schedule(config, &mut rng);
             }
             "Sphere" => {
-                let config: Asc<Sphere> = Asc::from_file(path);
+                let config: OverboxList<Sphere> = OverboxList::from_file(path);
                 make_and_run_schedule(config, &mut rng);
             }
             _ => panic!("Invalid shape/shape not implemented"),
@@ -341,12 +345,12 @@ fn main() {
                 if OPT.ellipsoid {
                     let shape = Ellipse::make_shape(OPT.a_semi, OPT.b_semi);
                     let init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
-                    let config = Asc::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
+                    let config = OverboxList::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
                     make_and_run_schedule(config, &mut rng);
                 } else {
                     let shape = Disk::make_shape(OPT.radius);
                     let init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
-                    let config = Asc::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
+                    let config = OverboxList::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
                     make_and_run_schedule(config, &mut rng);
                 }
             }
@@ -356,14 +360,14 @@ fn main() {
                     let init_cell = vec![OPT.side, 0.0, 0.0,
                                             0.0, OPT.side, 0.0,
                                             0.0, 0.0, OPT.side];
-                    let config = Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
+                    let config = OverboxList::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
                     make_and_run_schedule(config, &mut rng);
                 } else {
                     let shape = Sphere::make_shape(OPT.radius);
                     let init_cell = vec![OPT.side, 0.0, 0.0,
                                             0.0, OPT.side, 0.0,
                                             0.0, 0.0, OPT.side];
-                    let config = Asc::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
+                    let config = OverboxList::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
                     make_and_run_schedule(config, &mut rng);
                 }
             }

@@ -122,12 +122,12 @@ impl Particle for Sphere {
         vec![0.0, 0.0] // [samples, sum of volume]
     }
 
-    fn sample_obs_sweep(schedule: &mut Schedule<Self>, config: &Asc<Self>) {
+    fn sample_obs_sweep<C: Asc<Self>>(schedule: &mut Schedule<Self>, config: &C) {
         let vol = schedule.running_obs[1]/schedule.running_obs[0];
         schedule.running_obs = vec![0.0,0.0];
         println!("Cell volume over sweep: {}", vol);
-        let phi = (config.p_vec.len() as f64)
-            *4.0*PI*config.p_vec[0].radius.powi(3)
+        let phi = (config.n_particles() as f64)
+            *4.0*PI*config.first_particle().radius.powi(3)
             /(3.0*vol);
         println!("Phi over sweep: {}", phi);
         let logline = format!("{} {} {}", schedule.current_sweep, vol, phi);
@@ -135,18 +135,18 @@ impl Particle for Sphere {
         save_asc_from_opt(config, &format!("sweep_{}", schedule.current_sweep));
     }
 
-    fn sample_obs_failed_move(
+    fn sample_obs_failed_move<C: Asc<Self>>(
         schedule: &mut Schedule<Self>,
-        config: &Asc<Self>
+        config: &C
     )
     {
         schedule.running_obs[0] += 1.0;
         schedule.running_obs[1] += config.cell_volume();
     }
 
-    fn sample_obs_accepted_pmove(
+    fn sample_obs_accepted_pmove<C: Asc<Self>>(
         schedule: &mut Schedule<Self>,
-        config: &Asc<Self>,
+        config: &C,
         _changed_idx: usize,
         _old_p: &Self
     )
@@ -155,9 +155,9 @@ impl Particle for Sphere {
         schedule.running_obs[1] += config.cell_volume();
     }
     
-    fn sample_obs_accepted_cmove(
+    fn sample_obs_accepted_cmove<C: Asc<Self>>(
         schedule: &mut Schedule<Self>,
-        config: &Asc<Self>,
+        config: &C,
         _old_c: &[f64]
     )
     {

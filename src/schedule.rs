@@ -97,8 +97,8 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
         schedule
     }
 
-    pub fn run(&mut self,
-               config: &mut Asc<P>,
+    pub fn run<C: Asc<P>>(&mut self,
+               config: &mut C,
                rng: &mut Xoshiro256StarStar)
     {
         let u_dist = Uniform::new(0.0, 1.0);
@@ -114,7 +114,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
                     }
                 }
             }
-            P::sample_obs_sweep(self, &config);
+            P::sample_obs_sweep(self, config);
             self.post_sweep();
         }
     }
