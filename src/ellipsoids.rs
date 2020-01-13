@@ -315,6 +315,7 @@ impl Particle for Ellipsoid {
         println!("Cell volume over sweep: {}", vol);
         let semi_prod: f64 = config.first_particle().semi_axes.iter().product();
         let phi = (config.n_particles() as f64)*4.0*PI*semi_prod/(3.0*vol);
+        schedule.phi = phi;
         println!("Phi over sweep: {}", phi);
         let logline = format!("{} {} {}", schedule.current_sweep, vol, phi);
         write_sweep_log(&logline);
@@ -357,5 +358,14 @@ impl Particle for Ellipsoid {
 
     fn hint_upper(&self) -> f64 {
         self.major_semi_axis()
+    }
+
+    fn lat_coord(&self, cell: &[f64]) -> Vec<f64> {
+        let u = Matrix3::from_column_slice(cell);
+        let u_inv = u.lu().try_inverse().expect("unit cell matrix must be invertible");
+        let r = Vector3::from_column_slice(&self.pos);
+        // convert to lattice coords
+        let lat_c = u_inv*r;
+        lat_c.as_slice().try_into().unwrap()
     }
 }

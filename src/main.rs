@@ -17,6 +17,7 @@ mod schedule;
 mod spheres;
 mod ellipsoids;
 mod overbox_list;
+mod cell_list;
 
 use asc::{Asc, Particle, save_asc_from_opt};
 use disks::Disk;
@@ -25,6 +26,7 @@ use spheres::Sphere;
 use ellipsoids::Ellipsoid;
 use schedule::Schedule;
 use overbox_list::OverboxList;
+use cell_list::CellList;
 
 // Struct for command line
 #[derive(StructOpt, Debug)]
@@ -36,6 +38,20 @@ use overbox_list::OverboxList;
 /// Can configure number of threads to run on with RAYON_NUM_THREADS
 /// environment variable.
 struct Opt {
+    // If specified, stop after reaching this phi
+    // over one sweep
+    #[structopt(long)]
+    max_phi: Option<f64>,
+
+    /// If specified, use a cell list implementation
+    #[structopt(long)]
+    cell_list: bool,
+
+    /// When positive, use larger cells than the smallest possible
+    /// by width test in cell list
+    #[structopt(long, default_value = "0")]
+    subdiv_offset: usize,
+
     /// Check overlap, should probably specify
     /// --initfile or you'll just check an RSA
     /// configuration
@@ -83,6 +99,11 @@ struct Opt {
     /// if specified.
     #[structopt(short = "o", long)]
     savefiles: Option<PathBuf>,
+
+    /// Option to turn on saving of entire trajectory
+    /// If not, will save a backup file instead
+    #[structopt(long)]
+    save_trajectory: bool,
 
     /// Root filename to save log tables to.
     #[structopt(long)]
@@ -321,19 +342,39 @@ fn main() {
         match shape {
             "Ellipse" => {
                 let config: OverboxList<Ellipse> = OverboxList::from_file(path);
-                make_and_run_schedule(config, &mut rng);
+                if OPT.cell_list {
+                    let cell_list = CellList::from_overbox_list(config);
+                    make_and_run_schedule(cell_list, &mut rng);
+                } else {
+                    make_and_run_schedule(config, &mut rng);
+                }
             }
             "Disk" => {
                 let config: OverboxList<Disk> = OverboxList::from_file(path);
-                make_and_run_schedule(config, &mut rng);
+                if OPT.cell_list {
+                    let cell_list = CellList::from_overbox_list(config);
+                    make_and_run_schedule(cell_list, &mut rng);
+                } else {
+                    make_and_run_schedule(config, &mut rng);
+                }
             }
             "Ellipsoid" => {
                 let config: OverboxList<Ellipsoid> = OverboxList::from_file(path);
-                make_and_run_schedule(config, &mut rng);
+                if OPT.cell_list {
+                    let cell_list = CellList::from_overbox_list(config);
+                    make_and_run_schedule(cell_list, &mut rng);
+                } else {
+                    make_and_run_schedule(config, &mut rng);
+                }
             }
             "Sphere" => {
                 let config: OverboxList<Sphere> = OverboxList::from_file(path);
-                make_and_run_schedule(config, &mut rng);
+                if OPT.cell_list {
+                    let cell_list = CellList::from_overbox_list(config);
+                    make_and_run_schedule(cell_list, &mut rng);
+                } else {
+                    make_and_run_schedule(config, &mut rng);
+                }
             }
             _ => panic!("Invalid shape/shape not implemented"),
         }
@@ -346,12 +387,22 @@ fn main() {
                     let shape = Ellipse::make_shape(OPT.a_semi, OPT.b_semi);
                     let init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
                     let config = OverboxList::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
-                    make_and_run_schedule(config, &mut rng);
+                    if OPT.cell_list {
+                        let cell_list = CellList::from_overbox_list(config);
+                        make_and_run_schedule(cell_list, &mut rng);
+                    } else {
+                        make_and_run_schedule(config, &mut rng);
+                    }
                 } else {
                     let shape = Disk::make_shape(OPT.radius);
                     let init_cell = vec![OPT.side, 0.0, 0.0, OPT.side];
                     let config = OverboxList::make_rsa(OPT.number, &shape, 2, init_cell, &mut rng);
-                    make_and_run_schedule(config, &mut rng);
+                    if OPT.cell_list {
+                        let cell_list = CellList::from_overbox_list(config);
+                        make_and_run_schedule(cell_list, &mut rng);
+                    } else {   
+                        make_and_run_schedule(config, &mut rng);
+                    }
                 }
             }
             3 => {
@@ -361,14 +412,24 @@ fn main() {
                                             0.0, OPT.side, 0.0,
                                             0.0, 0.0, OPT.side];
                     let config = OverboxList::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
-                    make_and_run_schedule(config, &mut rng);
+                    if OPT.cell_list {
+                        let cell_list = CellList::from_overbox_list(config);
+                        make_and_run_schedule(cell_list, &mut rng);
+                    } else {
+                        make_and_run_schedule(config, &mut rng);
+                    }
                 } else {
                     let shape = Sphere::make_shape(OPT.radius);
                     let init_cell = vec![OPT.side, 0.0, 0.0,
                                             0.0, OPT.side, 0.0,
                                             0.0, 0.0, OPT.side];
                     let config = OverboxList::make_rsa(OPT.number, &shape, 3, init_cell, &mut rng);
-                    make_and_run_schedule(config, &mut rng);
+                    if OPT.cell_list {
+                        let cell_list = CellList::from_overbox_list(config);
+                        make_and_run_schedule(cell_list, &mut rng);
+                    } else {
+                        make_and_run_schedule(config, &mut rng);
+                    }
                 }
             }
             _ => panic!("Can't handle that dimension yet!"),

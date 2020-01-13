@@ -45,6 +45,7 @@ pub struct Schedule<P> {
     pub particle_param: Vec<f64>,
     pub running_obs: Vec<f64>,
     pub beta: f64,
+    pub phi: f64,
     _phantom: PhantomData<P>,
 }
 
@@ -73,6 +74,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
             running_obs: P::init_obs(),
             beta: 1.0, // TODO: decide if this should be 
                        // accessible to user
+            phi: 0.0,
             _phantom: PhantomData,
         };
         
@@ -97,6 +99,15 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
         schedule
     }
 
+    fn should_terminate(&self) -> bool {
+        if let Some(threshold) = OPT.max_phi {
+            if self.phi >= threshold {
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn run<C: Asc<P>>(&mut self,
                config: &mut C,
                rng: &mut Xoshiro256StarStar)
@@ -116,6 +127,9 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
             }
             P::sample_obs_sweep(self, config);
             self.post_sweep();
+            if self.should_terminate() {
+                return;
+            }
         }
     }
 

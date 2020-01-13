@@ -17,7 +17,7 @@ use rand_distr::{Uniform, Normal, Distribution};
 use nalgebra::{Matrix2, Matrix3};
 use crate::schedule::Schedule;
 use crate::OPT;
-use crate::asc::{Particle, Asc};
+use crate::asc::{Particle, Asc, volume};
 
 // Free helper functions
 
@@ -44,7 +44,7 @@ fn calc_offset(n: usize, dim: usize, overbox: usize, cell: &[f64]) -> Vec<f64>
 // vector
 #[derive(Clone)]
 pub struct OverboxList<P> {
-    dim: usize, // Dimension of configuration
+    pub dim: usize, // Dimension of configuration
     overbox: usize, // # of overboxes, needed for small unit cell
     pub cell: Vec<f64>, // Unit Cell
     pub p_vec: Vec<P>, // List of particles
@@ -82,7 +82,11 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> OverboxList<P> {
         let p_vec: Vec<P> = infile.lines()
             .map(|x| P::parse(&x.expect("Valid utf-8")))
             .collect();
-        OverboxList { dim, overbox, cell, p_vec }
+        let o_list = OverboxList { dim, overbox, cell, p_vec };
+        if !o_list.is_valid() {
+            eprintln!("Warning: input file does not correspond to packing, any monte carlo procedure may be erroneous");
+        }
+        o_list
     }
 
     // Make an rsa config
@@ -167,8 +171,11 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
     // Panics on any error
     // Tries to wait until data hits disk
     // https://doc.rust-lang.org/std/io/struct.BufWriter.html
-    fn save_asc(&self, path: &Path) {
+    fn save_asc(&self, path: &Path, annotation: Option<&str>) {
         let mut file = BufWriter::new(File::create(path).expect("Must specify valid path to save to."));
+        if let Some(annotation) = annotation {
+            writeln!(&mut file, "{}", annotation).expect("Failed write during save.");
+        }
         writeln!(&mut file, "{} {} {}", self.dim, self.overbox, P::TYPE).expect("Failed write during save.");
         for entry in self.cell.iter().with_position() {
             match entry {
@@ -257,19 +264,8 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
     */
     }
 
-    // TODO: Maybe should replace by appropriate nalgebra calls?
     fn cell_volume(&self) -> f64 {
-        match self.dim {
-            2 => { // Simple formula for determinant
-                (self.cell[0]*self.cell[3]
-                    - self.cell[1]*self.cell[2]).abs()
-            }
-            3 => {
-                let u = Matrix3::from_row_slice(&self.cell);
-                (u.row(0).dot(&u.row(1).cross(&u.row(2)))).abs()
-            }
-            _ => unimplemented!(),
-        }
+        volume(self.dim, &self.cell)
     }
 
     fn is_valid(&self) -> bool {
