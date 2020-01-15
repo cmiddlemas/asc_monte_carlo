@@ -281,7 +281,7 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
     }
 
     fn try_cell_move(&mut self,
-                         schedule: &Schedule<P>,
+                         schedule: &mut Schedule<P>,
                          rng: &mut Xoshiro256StarStar
     ) -> bool
     {
@@ -357,13 +357,26 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
                 (-schedule.beta*schedule.pressure*(new_vol - old_vol)
                  +n_particles*(new_vol/old_vol).ln()).exp();
             if uni_dist.sample(rng) < vol_factor { //Keep config
+                P::sample_obs_accepted_cmove(
+                    schedule,
+                    self,
+                    &old_asc.cell
+                );
                 true
             } else { //Reset config
                 *self = old_asc;
+                P::sample_obs_failed_move(
+                    schedule,
+                    self
+                );
                 false
             }
         } else { // Reset config
             *self = old_asc;
+            P::sample_obs_failed_move(
+                schedule,
+                self
+            );
             false
         }
     }

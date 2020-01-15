@@ -352,7 +352,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
     }
 
     // Try to change the cell by straining
-    fn try_cell_move(&mut self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool {
+    fn try_cell_move(&mut self, schedule: &mut Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool {
         let iso_dist = Normal::new(0.0, schedule.cell_param[0])
             .unwrap();
         let shear_dist = Normal::new(0.0, schedule.cell_param[1])
@@ -435,13 +435,26 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
                 (-schedule.beta*schedule.pressure*(new_vol - old_vol)
                  +n_particles*(new_vol/old_vol).ln()).exp();
             if uni_dist.sample(rng) < vol_factor { //Keep config
+                P::sample_obs_accepted_cmove(
+                    schedule,
+                    self,
+                    &old_asc.unit_cell
+                );
                 true
             } else { //Reset config
                 *self = old_asc;
+                P::sample_obs_failed_move(
+                    schedule,
+                    self
+                );
                 false
             }
         } else { // Reset config
             *self = old_asc;
+            P::sample_obs_failed_move(
+                schedule,
+                self
+            );
             false
         }
     }

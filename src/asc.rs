@@ -94,7 +94,7 @@ where P: Particle + Debug + Display + Send + Sync + Clone
     fn is_valid(&self) -> bool;
 
     // Try to change the cell by straining
-    fn try_cell_move(&mut self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool;
+    fn try_cell_move(&mut self, schedule: &mut Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool;
 
     // Try to move a particle
     fn try_particle_move(&mut self, schedule: &mut Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool;
