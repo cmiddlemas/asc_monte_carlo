@@ -346,9 +346,15 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
 
     // True if no overlaps
     fn is_valid(&self) -> bool {
-        self.p_list.par_iter()
-            .map(|p| self.check_particle(p))
-            .all(|x| x <= 1)
+        if OPT.no_rayon {
+            self.p_list.iter()
+                .map(|p| self.check_particle(p))
+                .all(|x| x <= 1)
+        } else {
+            self.p_list.par_iter()
+                .map(|p| self.check_particle(p))
+                .all(|x| x <= 1)
+        }
     }
 
     // Try to change the cell by straining

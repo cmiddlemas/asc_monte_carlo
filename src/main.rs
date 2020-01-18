@@ -214,6 +214,12 @@ struct Opt {
     /// increasing step is just 1/de
     #[structopt(long, default_value = "0.9")]
     adjust_dec_mult: f64,
+
+    /// Turns off use of rayon for parallelism.
+    /// Currently only works when --cell_list
+    /// is concurrently specified
+    #[structopt(long)]
+    no_rayon: bool,
 }
 
 // Globals -------------------------------------------------------------------
