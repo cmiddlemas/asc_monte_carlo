@@ -208,6 +208,12 @@ struct Opt {
     /// Brent max iterations, used in ellipsoid overlap
     #[structopt(long, default_value = "100")]
     brent_max_iter: usize,
+
+    /// Multiplier for decreaasing step size
+    /// when using --adjust. Multiplier for
+    /// increasing step is just 1/de
+    #[structopt(long, default_value = "0.9")]
+    adjust_dec_mult: f64,
 }
 
 // Globals -------------------------------------------------------------------

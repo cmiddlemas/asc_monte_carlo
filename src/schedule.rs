@@ -7,10 +7,6 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use crate::OPT;
 
-const DECREASE_MOD: f64 = 0.9;
-// Value calculated from Mathematica Student 11.2.0.0
-const INCREASE_MOD: f64 = 1.111111111111111;
-
 pub fn write_sweep_log(logline: &str) {
     if let Some(logroot) = &OPT.logfiles {
         let mut logpath = logroot.clone();
@@ -148,27 +144,30 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
             self.particle_accepts = vec![0,0]; self.particle_tries = vec![0,0];
             self.cell_accepts = 0; self.cell_tries = 0;
 
+            let decrease_mult = OPT.adjust_dec_mult;
+            let increase_mult = 1.0/decrease_mult;
+
             if OPT.combined_move { // only use acc_ratio_0, for combined move
                 if p_acc_ratio_0 < OPT.adjust_lower {
                     for val in self.particle_param.iter_mut() {
-                        *val *= DECREASE_MOD;
+                        *val *= decrease_mult;
                 }
                 } else if p_acc_ratio_0 > OPT.adjust_upper {
                     for val in self.particle_param.iter_mut() {
-                        *val *= INCREASE_MOD;
+                        *val *= increase_mult;
                     }
                 }
             } else {
                 if p_acc_ratio_0 < OPT.adjust_lower {
-                    self.particle_param[0] *= DECREASE_MOD;
+                    self.particle_param[0] *= decrease_mult;
                 } else if p_acc_ratio_0 > OPT.adjust_upper {
-                    self.particle_param[0] *= INCREASE_MOD;
+                    self.particle_param[0] *= increase_mult;
                 }
 
                 if p_acc_ratio_1 < OPT.adjust_lower {
-                    self.particle_param[1] *= DECREASE_MOD;
+                    self.particle_param[1] *= decrease_mult;
                 } else if p_acc_ratio_1 > OPT.adjust_upper {
-                    self.particle_param[1] *= INCREASE_MOD;
+                    self.particle_param[1] *= increase_mult;
                 }
                 if self.particle_param[1] > OPT.drot_cap {
                     println!("Capping rotations");
@@ -178,11 +177,11 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
 
             if c_acc_ratio < OPT.adjust_lower {
                 for val in self.cell_param.iter_mut() {
-                    *val *= DECREASE_MOD;
+                    *val *= decrease_mult;
                 }
             } else if c_acc_ratio > OPT.adjust_upper {
                 for val in self.cell_param.iter_mut() {
-                    *val *= INCREASE_MOD;
+                    *val *= increase_mult;
                 }
             }
             
