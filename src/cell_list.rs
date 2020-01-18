@@ -419,9 +419,15 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
         // https://stackoverflow.com/questions/48717833/how-to-use-struct-self-in-member-method-closure
         let new_cell = &self.unit_cell;
         // Change particles
-        self.p_list.par_iter_mut().for_each(|p| {
-            p.apply_strain(&old_asc.unit_cell, new_cell);
-        });
+        if OPT.no_rayon {
+            self.p_list.iter_mut().for_each(|p| {
+                p.apply_strain(&old_asc.unit_cell, new_cell);
+            });
+        } else {
+            self.p_list.par_iter_mut().for_each(|p| {
+                p.apply_strain(&old_asc.unit_cell, new_cell);
+            });
+        }
 
         // check to see if we need a cell list rebuild
         let max_radius = self.first_particle().hint_upper();
