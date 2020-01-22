@@ -237,28 +237,29 @@ fn make_and_run_schedule<C, P: Particle + Clone + Debug + Display + Send + Sync>
         (mut config: C, rng: &mut Xoshiro256StarStar)
     where C: Asc<P>
 {
+    let validity = config.is_valid();
+    println!("Found initial configuration is {}", validity);
     if OPT.check_overlap {
-        let validity = config.is_valid();
-        println!("Found configuration is {}", validity);
-    } else {
-        if OPT.savefiles.is_none() {
-            println!("Initial Configuration:");
-            config.print_asc();
-        }
-        save_asc_from_opt(&config, "initial");
-        let mut schedule = Schedule::make(config.first_particle());
-        println!("Running schedule:");
-        println!("{:?}", schedule);
-        schedule.run(&mut config, rng);
-        println!("Ended schedule:");
-        println!("{:?}", schedule);
-        if OPT.savefiles.is_none() {
-            println!("Final Configuration:");
-            config.print_asc();
-        }
-        save_asc_from_opt(&config, "final");
-        println!("Ending program at: {}", Utc::now());
+        // Don't run a schedule
+        return;
     }
+    if OPT.savefiles.is_none() {
+        println!("Initial Configuration:");
+        config.print_asc();
+    }
+    save_asc_from_opt(&config, "initial");
+    let mut schedule = Schedule::make(config.first_particle());
+    println!("Running schedule:");
+    println!("{:?}", schedule);
+    schedule.run(&mut config, rng);
+    println!("Ended schedule:");
+    println!("{:?}", schedule);
+    if OPT.savefiles.is_none() {
+        println!("Final Configuration:");
+        config.print_asc();
+    }
+    save_asc_from_opt(&config, "final");
+    println!("Ending program at: {}", Utc::now());
 }
 
 fn consume<T>(_arg: T) {}

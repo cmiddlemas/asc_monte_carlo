@@ -83,9 +83,6 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> OverboxList<P> {
             .map(|x| P::parse(&x.expect("Valid utf-8")))
             .collect();
         let o_list = OverboxList { dim, overbox, cell, p_vec };
-        if !o_list.is_valid() {
-            eprintln!("Warning: input file does not correspond to packing, any monte carlo procedure may be erroneous");
-        }
         o_list
     }
 
