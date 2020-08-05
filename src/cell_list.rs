@@ -5,7 +5,8 @@
 // Assumes monodispersity for now
 // Is probably similar to Ge's cell list implementation,
 // which I have access to, but this is in native rust
-use crate::asc::{Asc, Particle, volume};
+use crate::asc::{Asc, volume};
+use crate::particle::Particle;
 use crate::overbox_list::OverboxList;
 use std::fmt::{Debug, Display};
 use nalgebra::{Matrix2, Matrix3, Vector2, Vector3};

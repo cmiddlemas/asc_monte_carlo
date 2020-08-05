@@ -1,4 +1,4 @@
-use crate::asc::{Asc, Particle};
+use crate::asc::Asc;
 use rand_xoshiro::Xoshiro256StarStar;
 use rand_distr::{Uniform, Distribution};
 use std::marker::PhantomData;
@@ -6,6 +6,7 @@ use std::fmt::{Debug, Display};
 use std::fs::OpenOptions;
 use std::io::Write;
 use crate::OPT;
+use crate::particle::Particle;
 
 pub fn write_sweep_log(logline: &str) {
     if let Some(logroot) = &OPT.logfiles {

@@ -17,7 +17,8 @@ use rand_distr::{Uniform, Normal, Distribution};
 use nalgebra::{Matrix2, Matrix3};
 use crate::schedule::Schedule;
 use crate::OPT;
-use crate::asc::{Particle, Asc, volume};
+use crate::asc::{Asc, volume};
+use crate::particle::Particle;
 
 // Free helper functions
 

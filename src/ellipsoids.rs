@@ -1,4 +1,4 @@
-use crate::asc::Particle;
+use crate::particle::Particle;
 use rand_xoshiro::Xoshiro256StarStar;
 use rand_distr::{Uniform, Distribution, Normal};
 use std::fmt::{Display, Formatter};

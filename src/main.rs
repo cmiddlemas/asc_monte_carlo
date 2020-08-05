@@ -18,8 +18,10 @@ mod spheres;
 mod ellipsoids;
 mod overbox_list;
 mod cell_list;
+mod particle;
 
-use asc::{Asc, Particle, save_asc_from_opt};
+use asc::{Asc, save_asc_from_opt};
+use particle::Particle;
 use disks::Disk;
 use ellipses::Ellipse;
 use spheres::Sphere;
