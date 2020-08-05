@@ -9,7 +9,6 @@ use std::path::Path;
 use crate::OPT;
 use crate::schedule::Schedule;
 use crate::particle::Particle;
-use nalgebra::Matrix3;
 use std::fs::{OpenOptions, rename};
 
 pub fn save_asc_from_opt<C, P: Particle + Debug + Display + Send + Sync + Clone>
@@ -58,21 +57,6 @@ pub fn save_asc_from_opt<C, P: Particle + Debug + Display + Send + Sync + Clone>
                 config.save_asc(&full_path, None);
             }
         }
-    }
-}
-
-// TODO: maybe make 2d with nalgebra too?
-pub fn volume(dim: usize, unit_cell: &[f64]) -> f64 {
-    match dim {
-        2 => { // Simple formula for determinant
-            (unit_cell[0]*unit_cell[3]
-                - unit_cell[1]*unit_cell[2]).abs()
-        }
-        3 => {
-            let u = Matrix3::from_row_slice(unit_cell);
-            (u.row(0).dot(&u.row(1).cross(&u.row(2)))).abs()
-        }
-        _ => unimplemented!(),
     }
 }
 

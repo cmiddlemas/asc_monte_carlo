@@ -19,6 +19,7 @@ mod ellipsoids;
 mod overbox_list;
 mod cell_list;
 mod particle;
+mod common_util;
 
 use asc::{Asc, save_asc_from_opt};
 use particle::Particle;

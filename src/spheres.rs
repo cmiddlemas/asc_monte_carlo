@@ -8,6 +8,7 @@ use nalgebra::{Matrix3, Vector3};
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
 use crate::PI;
+use crate::common_util::apply_pbc;
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
@@ -19,23 +20,6 @@ pub struct Sphere {
 impl Sphere {
     pub fn make_shape(r: f64) -> Self {
         Sphere { pos: [0.0, 0.0, 0.0], radius: r }
-    }
-
-    // c is the unit cell, given as (u_rc)
-    // u_00 u_01 u_10 u_11 in 2d, etc.
-    // Need to use nalgebra here
-    fn apply_pbc(&mut self, c: &[f64]) {
-        let u = Matrix3::from_column_slice(c);
-        let u_inv = u.lu().try_inverse().expect("unit cell matrix must be invertible");
-        let r = Vector3::from_column_slice(&self.pos);
-        // convert to lattice coords
-        let mut lat_c = u_inv*r;
-        // put lattice coords back in unit square
-        lat_c.apply(|x| x - x.floor());
-        lat_c.apply(|x| x - x.floor());
-        // convert back to euclidean coords
-        // https://stackoverflow.com/questions/25428920/how-to-get-a-slice-as-an-array-in-rust
-        self.pos = (u*lat_c).as_slice().try_into().unwrap();
     }
 }
 
@@ -51,7 +35,7 @@ impl Display for Sphere {
 impl Particle for Sphere {
     const TYPE: &'static str = "Sphere";
 
-    fn parse(line: &str) -> Self {
+    fn parse(line: &str, unit_cell: &[f64]) -> Self {
         let params: Vec<f64> = line.split_whitespace()
             .map(|x| x.parse().unwrap())
             .collect();
@@ -101,22 +85,13 @@ impl Particle for Sphere {
         self.pos[1] += normal.sample(rng);
         self.pos[2] += normal.sample(rng);
         // Handle pbc
-        self.apply_pbc(cell);
+        self.pos = apply_pbc(&self.pos).as_slice().try_into().unwrap();
         (old_sphere, 0)
     }
 
     // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)
     // Also need nalgebra
-    fn apply_strain(&mut self, old_cell: &[f64], new_cell: &[f64]) {
-        // get old lattice coords
-        let u_old_inv = Matrix3::from_column_slice(old_cell)
-            .lu()
-            .try_inverse()
-            .expect("Unit cells must be invertible");
-        let lat_c = u_old_inv*Vector3::from_column_slice(&self.pos);
-        // set to new global coords
-        let u_new = Matrix3::from_column_slice(new_cell);
-        self.pos = (u_new*lat_c).as_slice().try_into().unwrap();
+    fn apply_strain(&mut self, new_cell: &[f64]) {
     }
 
     fn init_obs() -> Vec<f64> {
@@ -175,12 +150,7 @@ impl Particle for Sphere {
         self.radius
     }
 
-    fn lat_coord(&self, cell: &[f64]) -> Vec<f64> {
-        let u = Matrix3::from_column_slice(cell);
-        let u_inv = u.lu().try_inverse().expect("unit cell matrix must be invertible");
-        let r = Vector3::from_column_slice(&self.pos);
-        // convert to lattice coords
-        let lat_c = u_inv*r;
-        lat_c.as_slice().try_into().unwrap()
+    fn lat_coord(&self) -> Vec<f64> {
+        unimplemented!()
     }
 }

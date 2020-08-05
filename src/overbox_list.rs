@@ -17,7 +17,8 @@ use rand_distr::{Uniform, Normal, Distribution};
 use nalgebra::{Matrix2, Matrix3};
 use crate::schedule::Schedule;
 use crate::OPT;
-use crate::asc::{Asc, volume};
+use crate::asc::Asc;
+use crate::common_util::volume;
 use crate::particle::Particle;
 
 // Free helper functions
@@ -81,7 +82,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> OverboxList<P> {
             .collect();
         // 3rd line and on, particle
         let p_vec: Vec<P> = infile.lines()
-            .map(|x| P::parse(&x.expect("Valid utf-8")))
+            .map(|x| P::parse(&x.expect("Valid utf-8"), &cell))
             .collect();
         let o_list = OverboxList { dim, overbox, cell, p_vec };
         o_list
@@ -344,7 +345,7 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
         let new_cell = &self.cell;
         // Change particles
         self.p_vec.par_iter_mut().for_each(|p| {
-            p.apply_strain(&old_asc.cell, new_cell);
+            p.apply_strain(new_cell);
         });
         if self.is_valid() { // Accept probabilistically
             // http://www.pages.drexel.edu/~cfa22/msim/node31.html

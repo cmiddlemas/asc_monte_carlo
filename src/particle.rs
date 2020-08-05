@@ -8,7 +8,7 @@ where Self: Clone + Send + Sync + Debug + Display + std::marker::Sized {
     const TYPE: &'static str;
 
     // Parse from line in file
-    fn parse(line: &str) -> Self;
+    fn parse(line: &str, unit_cell: &[f64]) -> Self;
     
     // offset is a vector to add to translational coord of 
     // other
@@ -31,7 +31,7 @@ where Self: Clone + Send + Sync + Debug + Display + std::marker::Sized {
                rng: &mut Xoshiro256StarStar
     ) -> (Self, usize);
 
-    fn apply_strain(&mut self, old_cell: &[f64], new_cell: &[f64]);
+    fn apply_strain(&mut self, new_cell: &[f64]);
    
     fn init_obs() -> Vec<f64>;
 
@@ -69,5 +69,5 @@ where Self: Clone + Send + Sync + Debug + Display + std::marker::Sized {
     // in 2d and cause problems if we try to implement
     // d > 3
     // TODO: proper type level integers
-    fn lat_coord(&self, cell: &[f64]) -> Vec<f64>;
+    fn lat_coord(&self) -> Vec<f64>;
 }

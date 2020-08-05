@@ -5,7 +5,8 @@
 // Assumes monodispersity for now
 // Is probably similar to Ge's cell list implementation,
 // which I have access to, but this is in native rust
-use crate::asc::{Asc, volume};
+use crate::asc::Asc;
+use crate::common_util::volume;
 use crate::particle::Particle;
 use crate::overbox_list::OverboxList;
 use std::fmt::{Debug, Display};
@@ -73,21 +74,20 @@ fn max_subdiv(dim: usize, unit_cell: &[f64], max_radius: f64) -> usize {
 fn assign_cell<P: Particle>
     (dim: usize,
     lin_subdiv: usize,
-    unit_cell: &[f64],
     p: &P) 
 -> usize 
 {
     let ls_f64 = lin_subdiv as f64;
     match dim {
         2 => {
-            let lat_c = p.lat_coord(unit_cell);
+            let lat_c = p.lat_coord();
             let mut lat_idx = lat_c.iter().map(|x| (x*ls_f64).floor() as usize);
             let idx1 = lat_idx.next().unwrap();
             let idx2 = lat_idx.next().unwrap();
             idx1 + lin_subdiv*idx2
         }
         3 => {
-            let lat_c = p.lat_coord(unit_cell);
+            let lat_c = p.lat_coord();
             let mut lat_idx = lat_c.iter().map(|x| (x*ls_f64).floor() as usize);
             let idx1 = lat_idx.next().unwrap();
             let idx2 = lat_idx.next().unwrap();
@@ -126,7 +126,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> CellList<P> {
         self.c_assoc_list = vec![Vec::new(); self.lin_subdiv.pow(self.dim as u32)];
         self.p_assoc_list = vec![0; self.n_particles];
         for (i, p) in self.p_list.iter().enumerate() {
-            let idx = assign_cell(self.dim, self.lin_subdiv, &self.unit_cell, p);
+            let idx = assign_cell(self.dim, self.lin_subdiv, p);
             self.c_assoc_list[idx].push(i);
             self.p_assoc_list[i] = idx;
         }
@@ -134,7 +134,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> CellList<P> {
     }
 
     fn rebin_particle(&mut self, p_idx: usize) {
-        let new_cell = assign_cell(self.dim, self.lin_subdiv, &self.unit_cell, &self.p_list[p_idx]);
+        let new_cell = assign_cell(self.dim, self.lin_subdiv, &self.p_list[p_idx]);
         let old_cell = self.p_assoc_list[p_idx];
         if old_cell == new_cell {
             return;
@@ -326,7 +326,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
     // Check particle over overlaps in Asc, return number of overlaps
     fn check_particle(&self, fixed: &P) -> usize {
         // Can't just look it up because particle may have been perturbed
-        let current_cell = assign_cell(self.dim, self.lin_subdiv, &self.unit_cell, fixed);
+        let current_cell = assign_cell(self.dim, self.lin_subdiv, fixed);
         let mut n_overlaps = 0usize;
 
         for (cell, offset) in cells_around(current_cell,
@@ -422,11 +422,11 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
         // Change particles
         if OPT.no_rayon {
             self.p_list.iter_mut().for_each(|p| {
-                p.apply_strain(&old_asc.unit_cell, new_cell);
+                p.apply_strain(new_cell);
             });
         } else {
             self.p_list.par_iter_mut().for_each(|p| {
-                p.apply_strain(&old_asc.unit_cell, new_cell);
+                p.apply_strain(new_cell);
             });
         }
 

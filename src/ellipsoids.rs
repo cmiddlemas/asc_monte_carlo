@@ -10,6 +10,7 @@ use rgsl::{Minimizer, MinimizerType, Value, minimizer};
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
 use crate::{PI, OPT};
+use crate::common_util::apply_pbc;
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone, PartialEq)]
@@ -22,50 +23,6 @@ pub struct Ellipsoid {
 impl Ellipsoid {
     pub fn make_shape(a: f64, b: f64, c: f64) -> Self {
         Ellipsoid { pos: [0.0, 0.0, 0.0], quat: [1.0, 0.0, 0.0, 0.0], semi_axes: [a, b, c] }
-    }
-
-    // c is the unit cell, given as (u_rc)
-    // u_00 u_01 u_10 u_11 in 2d, etc.
-    // Need to use nalgebra here
-    fn apply_pbc(&mut self, c: &[f64]) {
-        let u = Matrix3::from_column_slice(c);
-        let u_inv = u.lu().try_inverse().expect("unit cell matrix must be invertible");
-        let r = Vector3::from_column_slice(&self.pos);
-        // convert to lattice coords
-        let mut lat_c = u_inv*r;
-        // put lattice coords back in unit square
-        // See Ge's code, need to do this
-        // to put domain in [0.0, 1.0)
-        // Consider very small negative f64 values
-        lat_c.apply(|x| x - x.floor());
-        lat_c.apply(|x| x - x.floor());
-        for a in &lat_c {
-            if *a >= 1.0 || *a < 0.0 {
-                println!("{:?}", u_inv*r);
-                println!("{:?}", lat_c);
-                panic!();
-            }
-        }
-        
-        // Check for reinversion
-        let test = u*lat_c;
-        let reinvert = u_inv*test;
-        for a in &reinvert {
-            if *a < 0.0 || *a >= 1.0 {
-                println!("{:?}", u_inv*r);
-                println!("{:?}", u_inv);
-                println!("{:?}", u);
-                println!("{:?}", r);
-                println!("{:?}", &lat_c);
-                println!("{:?}", test);
-                println!("{:?}", reinvert);
-                panic!();
-            }
-        }
-
-        // convert back to euclidean coords
-        // https://stackoverflow.com/questions/25428920/how-to-get-a-slice-as-an-array-in-rust
-        self.pos = (u*lat_c).as_slice().try_into().unwrap();
     }
 
     // https://stackoverflow.com/questions/28446632/how-do-i-get-the-minimum-or-maximum-value-of-an-iterator-containing-floating-poi
@@ -108,7 +65,7 @@ impl Particle for Ellipsoid {
     
     const TYPE: &'static str = "Ellipsoid";
  
-    fn parse(line: &str) -> Self {
+    fn parse(line: &str, unit_cell: &[f64]) -> Self {
         let params: Vec<f64> = line.split_whitespace()
             .map(|x| x.parse().unwrap())
             .collect();
@@ -300,7 +257,9 @@ impl Particle for Ellipsoid {
                     panic!();
                 }
             }
-            self.apply_pbc(cell);
+
+            // https://stackoverflow.com/questions/25428920/how-to-get-a-slice-as-an-array-in-rust
+            self.pos = apply_pbc(&self.pos).as_slice().try_into().unwrap();
         }
         // Apply rotation, strategy adapted from Frenkel and Mulder he of revolution paper
         if OPT.combined_move || move_type {
@@ -324,17 +283,7 @@ impl Particle for Ellipsoid {
 
     // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)
     // Also need nalgebra
-    fn apply_strain(&mut self, old_cell: &[f64], new_cell: &[f64]) {
-        // get old lattice coords
-        let u_old_inv = Matrix3::from_column_slice(old_cell)
-            .lu()
-            .try_inverse()
-            .expect("Unit cells must be invertible");
-        let lat_c = u_old_inv*Vector3::from_column_slice(&self.pos);
-        // set to new global coords
-        let u_new = Matrix3::from_column_slice(new_cell);
-        self.pos = (u_new*lat_c).as_slice().try_into().unwrap();
-        self.apply_pbc(new_cell);
+    fn apply_strain(&mut self, new_cell: &[f64]) {
     }
 
     fn init_obs() -> Vec<f64> {
@@ -392,22 +341,7 @@ impl Particle for Ellipsoid {
         self.major_semi_axis()
     }
 
-    fn lat_coord(&self, cell: &[f64]) -> Vec<f64> {
-        let u = Matrix3::from_column_slice(cell);
-        let u_inv = u.lu().try_inverse().expect("unit cell matrix must be invertible");
-        let r = Vector3::from_column_slice(&self.pos);
-        // convert to lattice coords
-        let lat_c = u_inv*r;
-        for a in &lat_c {
-            if *a > 1.0 || *a < 0.0 {
-                println!("{:?}", cell);
-                println!("{:?}", &lat_c);
-                println!("{}", self);
-                println!("{}", *a);
-                println!("{}", a.floor() as usize);
-                panic!();
-            }
-        }
-        lat_c.as_slice().try_into().unwrap()
+    fn lat_coord(&self) -> Vec<f64> {
+        unimplemented!()
     }
 }

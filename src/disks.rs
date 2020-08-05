@@ -6,35 +6,20 @@ use std::fmt;
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
 use crate::PI;
-use nalgebra::{Matrix2, Vector2};
 use std::convert::TryInto;
+use crate::common_util::{apply_pbc, global_to_relative2, relative_to_global2};
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
 pub struct Disk {
-    pos: [f64; 2],
-    radius: f64,
+    rel_pos: [f64; 2], // The relative position is the "source of truth"
+    global_pos: [f64; 2], // We cache the global position to avoid calculating unecessarily
+    radius: f64, // Radius in global distances
 }
 
 impl Disk {
     pub fn make_shape(r: f64) -> Self {
-        Disk { pos: [0.0, 0.0], radius: r }
-    }
-
-    // c is the unit cell, given as (u_rc
-    // u_00 u_01 u_10 u_11 
-    fn apply_pbc(&mut self, c: &[f64]) {
-        let u = Matrix2::from_column_slice(c);
-        let u_inv = u.lu().try_inverse().expect("unit cell matrix must be invertible");
-        let r = Vector2::from_column_slice(&self.pos);
-        // convert to lattice coords
-        let mut lat_c = u_inv*r;
-        // put lattice coords back in unit square
-        lat_c.apply(|x| x - x.floor());
-        lat_c.apply(|x| x - x.floor());
-        // convert back to euclidean coords
-        // https://stackoverflow.com/questions/25428920/how-to-get-a-slice-as-an-array-in-rust
-        self.pos = (u*lat_c).as_slice().try_into().unwrap();
+        Disk { rel_pos: [0.0, 0.0], global_pos: [0.0, 0.0], radius: r }
     }
 }
 
@@ -42,7 +27,7 @@ impl Display for Disk {
     // From rust docs
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{} {} {}",
-               self.pos[0], self.pos[1], self.radius
+               self.rel_pos[0], self.rel_pos[1],  self.radius
         )
     }
 }
@@ -50,21 +35,20 @@ impl Display for Disk {
 impl Particle for Disk {
     const TYPE: &'static str = "Disk";
 
-    fn parse(line: &str) -> Self {
+    fn parse(line: &str, unit_cell: &[f64]) -> Self {
         let params: Vec<f64> = line.split_whitespace()
             .map(|x| x.parse().unwrap())
             .collect();
-        Disk { pos: [params[0], params[1]], radius: params[2] } 
+        let rel_pos = [params[0], params[1]];
+        let global_pos = relative_to_global2(unit_cell, &rel_pos);
+        Disk { rel_pos, global_pos, radius: params[2] } 
     }
 
     fn check_overlap(&self, other: &Self, offset: &[f64]) -> bool {
-        //if *self == *other && offset.iter().all(|&x| x == 0.0) {
-        //    return false; 
-        //}
-        let image_x = other.pos[0] + offset[0];
-        let image_y = other.pos[1] + offset[1];
-        (self.pos[0] - image_x).powi(2) 
-            + (self.pos[1] - image_y).powi(2)
+        let image_x = other.global_pos[0] + offset[0];
+        let image_y = other.global_pos[1] + offset[1];
+        (self.global_pos[0] - image_x).powi(2) 
+            + (self.global_pos[1] - image_y).powi(2)
             <= (self.radius + other.radius).powi(2)
     }
     
@@ -73,15 +57,13 @@ impl Particle for Disk {
                                rng: &mut Xoshiro256StarStar
     ) -> Self
     {
-        const DIM: usize = 2;
         let uni_dist = Uniform::new(0.0, 1.0);
         let lat_x = uni_dist.sample(rng);
         let lat_y = uni_dist.sample(rng);
+        let rel_pos = [lat_x, lat_y];
+        let global_pos = relative_to_global2(cell, &rel_pos);
         // Turn lattice coords into euclidean coords
-        Disk { pos: 
-            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*1 + 0],
-              lat_x*cell[DIM*0 + 1] + lat_y*cell[DIM*1 + 1]],
-            radius: self.radius }
+        Disk { rel_pos, global_pos, radius: self.radius }
     }
 
     fn perturb(&mut self,
@@ -92,24 +74,20 @@ impl Particle for Disk {
     {
         let old_disk = self.clone();
         let normal = Normal::new(0.0, param[0]).unwrap();
-        self.pos[0] += normal.sample(rng);
-        self.pos[1] += normal.sample(rng);
+        self.global_pos[0] += normal.sample(rng);
+        self.global_pos[1] += normal.sample(rng);
+        let uncorrected_rel = global_to_relative2(cell, &self.global_pos);
         // Handle pbc
-        self.apply_pbc(cell);
+        self.rel_pos = apply_pbc(&uncorrected_rel).as_slice().try_into().unwrap();
+        // Recalculate global because relative is primary
+        self.global_pos = relative_to_global2(cell, &self.rel_pos);
         (old_disk, 0)
     }
 
     // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)
-    fn apply_strain(&mut self, old_cell: &[f64], new_cell: &[f64]) {
-        // get old lattice coords
-        let u_old_inv = Matrix2::from_column_slice(old_cell)
-            .lu()
-            .try_inverse()
-            .expect("Unit cells must be invertible");
-        let lat_c = u_old_inv*Vector2::from_column_slice(&self.pos);
-        // set to new global coords
-        let u_new = Matrix2::from_column_slice(new_cell);
-        self.pos = (u_new*lat_c).as_slice().try_into().unwrap();
+    fn apply_strain(&mut self, new_cell: &[f64]) {
+        // Just need to change global coords
+        self.global_pos = relative_to_global2(new_cell, &self.rel_pos);
     }
 
     fn init_obs() -> Vec<f64> {
@@ -168,12 +146,7 @@ impl Particle for Disk {
         self.radius
     }
 
-    fn lat_coord(&self, cell: &[f64]) -> Vec<f64> {
-        let u = Matrix2::from_column_slice(cell);
-        let u_inv = u.lu().try_inverse().expect("unit cell matrix must be invertible");
-        let r = Vector2::from_column_slice(&self.pos);
-        // convert to lattice coords
-        let lat_c = u_inv*r;
-        lat_c.as_slice().try_into().unwrap()
+    fn lat_coord(&self) -> Vec<f64> {
+        self.rel_pos.to_vec()
     }
 }
