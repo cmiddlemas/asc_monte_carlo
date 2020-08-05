@@ -34,7 +34,35 @@ impl Ellipsoid {
         // convert to lattice coords
         let mut lat_c = u_inv*r;
         // put lattice coords back in unit square
+        // See Ge's code, need to do this
+        // to put domain in [0.0, 1.0)
+        // Consider very small negative f64 values
         lat_c.apply(|x| x - x.floor());
+        lat_c.apply(|x| x - x.floor());
+        for a in &lat_c {
+            if *a >= 1.0 || *a < 0.0 {
+                println!("{:?}", u_inv*r);
+                println!("{:?}", lat_c);
+                panic!();
+            }
+        }
+        
+        // Check for reinversion
+        let test = u*lat_c;
+        let reinvert = u_inv*test;
+        for a in &reinvert {
+            if *a < 0.0 || *a >= 1.0 {
+                println!("{:?}", u_inv*r);
+                println!("{:?}", u_inv);
+                println!("{:?}", u);
+                println!("{:?}", r);
+                println!("{:?}", &lat_c);
+                println!("{:?}", test);
+                println!("{:?}", reinvert);
+                panic!();
+            }
+        }
+
         // convert back to euclidean coords
         // https://stackoverflow.com/questions/25428920/how-to-get-a-slice-as-an-array-in-rust
         self.pos = (u*lat_c).as_slice().try_into().unwrap();
@@ -268,6 +296,9 @@ impl Particle for Ellipsoid {
         if OPT.combined_move || !move_type {
             for x in &mut self.pos {
                 *x += normal_trans.sample(rng);
+                if !x.is_normal() {
+                    panic!();
+                }
             }
             self.apply_pbc(cell);
         }
@@ -303,6 +334,7 @@ impl Particle for Ellipsoid {
         // set to new global coords
         let u_new = Matrix3::from_column_slice(new_cell);
         self.pos = (u_new*lat_c).as_slice().try_into().unwrap();
+        self.apply_pbc(new_cell);
     }
 
     fn init_obs() -> Vec<f64> {
@@ -366,6 +398,16 @@ impl Particle for Ellipsoid {
         let r = Vector3::from_column_slice(&self.pos);
         // convert to lattice coords
         let lat_c = u_inv*r;
+        for a in &lat_c {
+            if *a > 1.0 || *a < 0.0 {
+                println!("{:?}", cell);
+                println!("{:?}", &lat_c);
+                println!("{}", self);
+                println!("{}", *a);
+                println!("{}", a.floor() as usize);
+                panic!();
+            }
+        }
         lat_c.as_slice().try_into().unwrap()
     }
 }

@@ -32,6 +32,7 @@ impl Sphere {
         let mut lat_c = u_inv*r;
         // put lattice coords back in unit square
         lat_c.apply(|x| x - x.floor());
+        lat_c.apply(|x| x - x.floor());
         // convert back to euclidean coords
         // https://stackoverflow.com/questions/25428920/how-to-get-a-slice-as-an-array-in-rust
         self.pos = (u*lat_c).as_slice().try_into().unwrap();
