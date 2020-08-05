@@ -150,3 +150,45 @@ impl Particle for Disk {
         self.rel_pos.to_vec()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand_xoshiro::rand_core::SeedableRng;
+
+    #[test]
+    fn zero_inversion_perturb() {
+        // Cell selected by changing by hand until test passes,
+        // since this is just a regression test
+        let mut rng = Xoshiro256StarStar::seed_from_u64(0);
+        let cell = [2100.0232, 125.0, -230.0, 3.2];
+        let mut disk: Disk = Particle::parse("0.0 0.3 1.0", &cell);
+        disk.perturb(&cell, &[0.0], &mut rng);
+        let local = global_to_relative2(&cell, &disk.global_pos);
+        assert!(local[0] < 0.0);
+        assert!(disk.rel_pos[0] >= 0.0 && disk.rel_pos[0] < 1.0);
+        assert!(disk.rel_pos[1] >= 0.0 && disk.rel_pos[1] < 1.0);
+        let local_pbc = apply_pbc(&local);
+        assert!(local_pbc[0] >= 0.0 && local_pbc[0] < 1.0);
+        assert!(local_pbc[1] >= 0.0 && local_pbc[1] < 1.0);
+    }
+    
+    #[test]
+    fn zero_inversion_strain() {
+        // Cell selected by changing by hand until test passes,
+        // since this is just a regression test
+        let mut rng = Xoshiro256StarStar::seed_from_u64(0);
+        let old_cell = [1.0, 0.0, 0.0, 1.0];
+        let cell = [2100.0232, 125.0, -230.0, 3.2];
+        let mut disk: Disk = Particle::parse("0.0 0.3 1.0", &old_cell);
+        disk.apply_strain(&cell);
+        let local = global_to_relative2(&cell, &disk.global_pos);
+        assert!(local[0] < 0.0);
+        assert!(disk.rel_pos[0] >= 0.0 && disk.rel_pos[0] < 1.0);
+        assert!(disk.rel_pos[1] >= 0.0 && disk.rel_pos[1] < 1.0);
+        let local_pbc = apply_pbc(&local);
+        assert!(local_pbc[0] >= 0.0 && local_pbc[0] < 1.0);
+        assert!(local_pbc[1] >= 0.0 && local_pbc[1] < 1.0);
+    }
+
+}

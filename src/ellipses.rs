@@ -9,19 +9,20 @@ use rgsl::{Minimizer, MinimizerType, Value, minimizer};
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
 use crate::{PI,OPT};
-use crate::common_util::apply_pbc;
+use crate::common_util::{apply_pbc, relative_to_global2, global_to_relative2};
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
 pub struct Ellipse {
-    pos: [f64; 2], // [x, y]
+    rel_pos: [f64; 2], // [x, y], in terms of multiple of lattice vector
+    global_pos: [f64; 2],
     theta: f64,
     semi_axes: [f64; 2], // for no rot, [x, y]
 }
 
 impl Ellipse {
     pub fn make_shape(a: f64, b: f64) -> Self {
-        Ellipse { pos: [0.0, 0.0], theta: 0.0, semi_axes: [a, b] }
+        Ellipse { rel_pos: [0.0, 0.0], global_pos: [0.0, 0.0], theta: 0.0, semi_axes: [a, b] }
     }
 
     fn minor_semi_axis(&self) -> f64 {
@@ -41,7 +42,7 @@ impl Display for Ellipse {
     // From rust docs
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{} {} {} {} {}",
-               self.pos[0], self.pos[1], self.theta,
+               self.rel_pos[0], self.rel_pos[1], self.theta,
                self.semi_axes[0], self.semi_axes[1]
         )
     }
@@ -64,16 +65,19 @@ impl Particle for Ellipse {
         let params: Vec<f64> = line.split_whitespace()
             .map(|x| x.parse().unwrap())
             .collect();
-        Ellipse { pos: [params[0], params[1]], 
-                    theta: params[2],
-                    semi_axes: [params[3], params[4]] } 
+        let rel_pos = [params[0], params[1]];
+        let global_pos = relative_to_global2(unit_cell, &rel_pos);
+        Ellipse { rel_pos,
+                  global_pos,
+                  theta: params[2],
+                  semi_axes: [params[3], params[4]] }
     }
 
     fn check_overlap(&self, other: &Self, offset: &[f64]) -> bool {
-        let image_x = other.pos[0] + offset[0];
-        let image_y = other.pos[1] + offset[1];
-        let disp_x = self.pos[0] - image_x;
-        let disp_y = self.pos[1] - image_y;
+        let image_x = other.global_pos[0] + offset[0];
+        let image_y = other.global_pos[1] + offset[1];
+        let disp_x = self.global_pos[0] - image_x;
+        let disp_y = self.global_pos[1] - image_y;
         let disp2 = disp_x.powi(2) + disp_y.powi(2);
         // Pre-check, as suggested in Hard Convex Body Fluids
         // Try and avoid evaluating PW potential by checking inner and outer
@@ -156,12 +160,13 @@ impl Particle for Ellipse {
         let lat_y = uni_dist.sample(rng);
         let theta_dist = Uniform::new(0.0, 2.0*PI);
         let theta = theta_dist.sample(rng);
+        let rel_pos = [lat_x, lat_y];
+        let global_pos = relative_to_global2(cell, &rel_pos);
         // Turn lattice coords into euclidean coords
-        Ellipse { pos: 
-            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*1 + 0],
-              lat_x*cell[DIM*0 + 1] + lat_y*cell[DIM*1 + 1]],
-            theta,
-            semi_axes: self.semi_axes }
+        Ellipse { rel_pos,
+                  global_pos,
+                  theta,
+                  semi_axes: self.semi_axes }
     }
 
     fn perturb(&mut self,
@@ -179,10 +184,13 @@ impl Particle for Ellipse {
         let move_type = uni_dist.sample(rng) <= 0.5;
         // Apply translation
         if OPT.combined_move || !move_type {
-            for x in &mut self.pos {
+            for x in &mut self.global_pos {
                 *x += normal_trans.sample(rng);
             }
-            self.pos = apply_pbc(&self.pos).as_slice().try_into().unwrap();
+            let uncorrected_rel = global_to_relative2(cell, &self.global_pos);
+            self.rel_pos = apply_pbc(&uncorrected_rel).as_slice().try_into().unwrap();
+            // Recalculate global
+            self.global_pos = relative_to_global2(cell, &self.rel_pos);
         }
         // Apply rotation
         if OPT.combined_move || move_type {
@@ -199,6 +207,7 @@ impl Particle for Ellipse {
 
     // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)
     fn apply_strain(&mut self, new_cell: &[f64]) {
+        self.global_pos = relative_to_global2(new_cell, &self.rel_pos);
     }
 
     fn init_obs() -> Vec<f64> {
@@ -257,6 +266,48 @@ impl Particle for Ellipse {
     }
 
     fn lat_coord(&self) -> Vec<f64> { 
-        unimplemented!()
+        self.rel_pos.to_vec()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand_xoshiro::rand_core::SeedableRng;
+
+    #[test]
+    fn zero_inversion_perturb() {
+        // Cell selected by changing by hand until test passes,
+        // since this is just a regression test
+        let mut rng = Xoshiro256StarStar::seed_from_u64(0);
+        let cell = [2100.0232, 125.0, -230.0, 3.2];
+        let mut ellipse: Ellipse = Particle::parse("0.0 0.3 1.0 1.2 0.2", &cell);
+        ellipse.perturb(&cell, &[0.0, 1.0], &mut rng);
+        let local = global_to_relative2(&cell, &ellipse.global_pos);
+        assert!(local[0] < 0.0);
+        assert!(ellipse.rel_pos[0] >= 0.0 && ellipse.rel_pos[0] < 1.0);
+        assert!(ellipse.rel_pos[1] >= 0.0 && ellipse.rel_pos[1] < 1.0);
+        let local_pbc = apply_pbc(&local);
+        assert!(local_pbc[0] >= 0.0 && local_pbc[0] < 1.0);
+        assert!(local_pbc[1] >= 0.0 && local_pbc[1] < 1.0);
+    }
+    
+    #[test]
+    fn zero_inversion_strain() {
+        // Cell selected by changing by hand until test passes,
+        // since this is just a regression test
+        let mut rng = Xoshiro256StarStar::seed_from_u64(0);
+        let old_cell = [1.0, 0.0, 0.0, 1.0];
+        let cell = [2100.0232, 125.0, -230.0, 3.2];
+        let mut ellipse: Ellipse = Particle::parse("0.0 0.3 1.0 1.2 0.2", &old_cell);
+        ellipse.apply_strain(&cell);
+        let local = global_to_relative2(&cell, &ellipse.global_pos);
+        assert!(local[0] < 0.0);
+        assert!(ellipse.rel_pos[0] >= 0.0 && ellipse.rel_pos[0] < 1.0);
+        assert!(ellipse.rel_pos[1] >= 0.0 && ellipse.rel_pos[1] < 1.0);
+        let local_pbc = apply_pbc(&local);
+        assert!(local_pbc[0] >= 0.0 && local_pbc[0] < 1.0);
+        assert!(local_pbc[1] >= 0.0 && local_pbc[1] < 1.0);
+    }
+
 }

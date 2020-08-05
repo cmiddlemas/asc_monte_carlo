@@ -43,4 +43,47 @@ pub fn volume(dim: usize, unit_cell: &[f64]) -> f64 {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
 
+    #[test]
+    fn map_back_negative() {
+        let x = [-1e-50, 2.0];
+        let y = apply_pbc(&x);
+        assert_eq!(y[0], 0.0);
+        assert_eq!(y[1], 0.0);
+    }
+
+    #[test]
+    fn inverse() {
+        let cell = [1.4, 0.2, -3.8, 2.0];
+        let l_r = [0.2, 0.3];
+        let g_r = relative_to_global2(&cell, &l_r);
+        let inverse = global_to_relative2(&cell, &g_r);
+        assert!(((l_r[0] - inverse[0])/l_r[0]).abs() < 1e-14);
+        assert!(((l_r[1] - inverse[1])/l_r[1]).abs() < 1e-14);
+    }
+    
+    #[test]
+    fn inverse2() {
+        let cell = [1.4, 0.2, -3.8, 2.0];
+        let g_r = [17.2, -100.3];
+        let l_r = global_to_relative2(&cell, &g_r);
+        let inverse = relative_to_global2(&cell, &l_r);
+        assert!(((g_r[0] - inverse[0])/l_r[0]).abs() < 1e-14);
+        assert!(((g_r[1] - inverse[1])/l_r[1]).abs() < 1e-14);
+    }
+
+    #[test]
+    fn volume2() {
+        let cell = [2.0, 0.0, 0.0, 2.0];
+        assert!(volume(2, &cell) == 4.0);
+    }
+
+    #[test]
+    fn volume3() {
+        let cell = [2.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0];
+        assert!(volume(3, &cell) == 8.0);
+    }
+}
