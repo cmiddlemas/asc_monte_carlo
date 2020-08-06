@@ -62,7 +62,6 @@ impl Particle for Disk {
         let lat_y = uni_dist.sample(rng);
         let rel_pos = [lat_x, lat_y];
         let global_pos = relative_to_global2(cell, &rel_pos);
-        // Turn lattice coords into euclidean coords
         Disk { rel_pos, global_pos, radius: self.radius }
     }
 

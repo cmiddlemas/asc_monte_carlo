@@ -296,7 +296,6 @@ mod tests {
     fn zero_inversion_strain() {
         // Cell selected by changing by hand until test passes,
         // since this is just a regression test
-        let mut rng = Xoshiro256StarStar::seed_from_u64(0);
         let old_cell = [1.0, 0.0, 0.0, 1.0];
         let cell = [2100.0232, -2000.21983, -230.0, 5.2];
         let mut ellipse: Ellipse = Particle::parse("0.0 0.3 1.0 1.2 0.2", &old_cell);

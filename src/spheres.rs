@@ -8,18 +8,19 @@ use nalgebra::{Matrix3, Vector3};
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
 use crate::PI;
-use crate::common_util::apply_pbc;
+use crate::common_util::{apply_pbc, relative_to_global3, global_to_relative3};
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
 pub struct Sphere {
-    pos: [f64; 3],
+    rel_pos: [f64; 3],
+    global_pos: [f64; 3],
     radius: f64,
 }
 
 impl Sphere {
     pub fn make_shape(r: f64) -> Self {
-        Sphere { pos: [0.0, 0.0, 0.0], radius: r }
+        Sphere { rel_pos: [0.0, 0.0, 0.0], global_pos: [0.0, 0.0, 0.0], radius: r }
     }
 }
 
@@ -27,7 +28,7 @@ impl Display for Sphere {
     // From rust docs
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{} {} {} {}",
-               self.pos[0], self.pos[1], self.pos[2], self.radius
+               self.rel_pos[0], self.rel_pos[1], self.rel_pos[2], self.radius
         )
     }
 }
@@ -39,19 +40,18 @@ impl Particle for Sphere {
         let params: Vec<f64> = line.split_whitespace()
             .map(|x| x.parse().unwrap())
             .collect();
-        Sphere { pos: [params[0], params[1], params[2]], radius: params[3] } 
+        let rel_pos = [params[0], params[1], params[2]];
+        let global_pos = relative_to_global3(unit_cell, &rel_pos);
+        Sphere { rel_pos, global_pos, radius: params[3] } 
     }
 
     fn check_overlap(&self, other: &Self, offset: &[f64]) -> bool {
-        //if *self == *other && offset.iter().all(|&x| x == 0.0) {
-        //    return false; 
-        //}
-        let image_x = other.pos[0] + offset[0];
-        let image_y = other.pos[1] + offset[1];
-        let image_z = other.pos[2] + offset[2];
-        (self.pos[0] - image_x).powi(2) 
-            + (self.pos[1] - image_y).powi(2)
-            + (self.pos[2] - image_z).powi(2)
+        let image_x = other.global_pos[0] + offset[0];
+        let image_y = other.global_pos[1] + offset[1];
+        let image_z = other.global_pos[2] + offset[2];
+        (self.global_pos[0] - image_x).powi(2) 
+            + (self.global_pos[1] - image_y).powi(2)
+            + (self.global_pos[2] - image_z).powi(2)
             <= (self.radius + other.radius).powi(2)
     }
     
@@ -60,17 +60,13 @@ impl Particle for Sphere {
                                rng: &mut Xoshiro256StarStar
     ) -> Self
     {
-        const DIM: usize = 3;
         let uni_dist = Uniform::new(0.0, 1.0);
         let lat_x = uni_dist.sample(rng);
         let lat_y = uni_dist.sample(rng);
         let lat_z = uni_dist.sample(rng);
-        // Turn lattice coords into euclidean coords
-        Sphere { pos: 
-            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*1 + 0] + lat_z*cell[DIM*2 + 0],
-              lat_x*cell[DIM*0 + 1] + lat_y*cell[DIM*1 + 1] + lat_z*cell[DIM*2 + 1],
-              lat_x*cell[DIM*0 + 2] + lat_y*cell[DIM*1 + 2] + lat_z*cell[DIM*2 + 2]],
-            radius: self.radius }
+        let rel_pos = [lat_x, lat_y, lat_z];
+        let global_pos = relative_to_global3(cell, &rel_pos);
+        Sphere { rel_pos, global_pos, radius: self.radius }
     }
 
     fn perturb(&mut self,
@@ -81,17 +77,21 @@ impl Particle for Sphere {
     {
         let old_sphere = self.clone();
         let normal = Normal::new(0.0, param[0]).unwrap();
-        self.pos[0] += normal.sample(rng);
-        self.pos[1] += normal.sample(rng);
-        self.pos[2] += normal.sample(rng);
+        self.global_pos[0] += normal.sample(rng);
+        self.global_pos[1] += normal.sample(rng);
+        self.global_pos[2] += normal.sample(rng);
+        let uncorrected_rel = global_to_relative3(cell, &self.global_pos);
         // Handle pbc
-        self.pos = apply_pbc(&self.pos).as_slice().try_into().unwrap();
+        self.rel_pos = apply_pbc(&uncorrected_rel).as_slice().try_into().unwrap();
+        // Recalculate global
+        self.global_pos = relative_to_global3(cell, &self.rel_pos);
         (old_sphere, 0)
     }
 
     // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)
     // Also need nalgebra
     fn apply_strain(&mut self, new_cell: &[f64]) {
+        self.global_pos = relative_to_global3(new_cell, &self.rel_pos);
     }
 
     fn init_obs() -> Vec<f64> {
@@ -151,6 +151,54 @@ impl Particle for Sphere {
     }
 
     fn lat_coord(&self) -> Vec<f64> {
-        unimplemented!()
+        self.rel_pos.to_vec()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand_xoshiro::rand_core::SeedableRng;
+
+    #[test]
+    fn zero_inversion_perturb() {
+        // Cell selected by changing by hand until test passes,
+        // since this is just a regression test
+        let mut rng = Xoshiro256StarStar::seed_from_u64(0);
+        let cell = [2100.0232, -2000.21983, -230.0, 833.5, 2.4, -231.15, 5.2, -200.1, 21.24];
+        let mut sphere: Sphere = Particle::parse("0.0 0.3 0.22 1.0", &cell);
+        println!("{}", sphere);
+        sphere.perturb(&cell, &[0.0], &mut rng);
+        println!("{}", sphere);
+        let local = global_to_relative3(&cell, &sphere.global_pos);
+        //assert!(local[0] < 0.0);
+        assert!(sphere.rel_pos[0] >= 0.0 && sphere.rel_pos[0] < 1.0);
+        assert!(sphere.rel_pos[1] >= 0.0 && sphere.rel_pos[1] < 1.0);
+        assert!(sphere.rel_pos[2] >= 0.0 && sphere.rel_pos[2] < 1.0);
+        let local_pbc = apply_pbc(&local);
+        assert!(local_pbc[0] >= 0.0 && local_pbc[0] < 1.0);
+        assert!(local_pbc[1] >= 0.0 && local_pbc[1] < 1.0);
+        assert!(local_pbc[2] >= 0.0 && local_pbc[2] < 1.0);
+    }
+    
+    #[test]
+    fn zero_inversion_strain() {
+        // Cell selected by changing by hand until test passes,
+        // since this is just a regression test
+        let mut rng = Xoshiro256StarStar::seed_from_u64(0);
+        let old_cell = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let cell = [2100.0232, -2000.21983, -230.0, 833.5, 2.4, -231.15, 5.2, -200.1, 21.24];
+        let mut sphere: Sphere = Particle::parse("0.0 0.3 0.22 1.0", &old_cell);
+        sphere.apply_strain(&cell);
+        let local = global_to_relative3(&cell, &sphere.global_pos);
+        assert!(local[0] < 0.0);
+        assert!(sphere.rel_pos[0] >= 0.0 && sphere.rel_pos[0] < 1.0);
+        assert!(sphere.rel_pos[1] >= 0.0 && sphere.rel_pos[1] < 1.0);
+        assert!(sphere.rel_pos[2] >= 0.0 && sphere.rel_pos[2] < 1.0);
+        let local_pbc = apply_pbc(&local);
+        println!("{:?}", local_pbc);
+        assert!(local_pbc[0] >= 0.0 && local_pbc[0] < 1.0);
+        assert!(local_pbc[1] >= 0.0 && local_pbc[1] < 1.0);
+        assert!(local_pbc[2] >= 0.0 && local_pbc[2] < 1.0);
     }
 }
