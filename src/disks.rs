@@ -160,8 +160,10 @@ mod tests {
     fn zero_inversion_perturb() {
         // Cell selected by changing by hand until test passes,
         // since this is just a regression test
+        // Need to change example because I changed
+        // matrix inversion method to nalgebra default
         let mut rng = Xoshiro256StarStar::seed_from_u64(0);
-        let cell = [2100.0232, 125.0, -230.0, 3.2];
+        let cell = [2100.0232, -2000.21983, -230.0, 5.2];
         let mut disk: Disk = Particle::parse("0.0 0.3 1.0", &cell);
         disk.perturb(&cell, &[0.0], &mut rng);
         let local = global_to_relative2(&cell, &disk.global_pos);
@@ -179,7 +181,7 @@ mod tests {
         // since this is just a regression test
         let mut rng = Xoshiro256StarStar::seed_from_u64(0);
         let old_cell = [1.0, 0.0, 0.0, 1.0];
-        let cell = [2100.0232, 125.0, -230.0, 3.2];
+        let cell = [2100.0232, -2000.21983, -230.0, 5.2];
         let mut disk: Disk = Particle::parse("0.0 0.3 1.0", &old_cell);
         disk.apply_strain(&cell);
         let local = global_to_relative2(&cell, &disk.global_pos);
