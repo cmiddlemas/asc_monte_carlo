@@ -1,0 +1,12 @@
+22 January 2020
+Implement stage consistency checking
+Implement structure factor hooks
+Implement order metric hooks
+Fix runaway translation bug in cell_list
+Fix pbc bug in cell_list
+Switch to uniform distribution in strain
+Cap translation at a reasonable value
+7 August 2020
+Allow tests to be run with options to libtest
+    Currently isn't possible because OPT will try
+    and parse the libtest command line on first access
