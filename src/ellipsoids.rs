@@ -10,19 +10,23 @@ use rgsl::{Minimizer, MinimizerType, Value, minimizer};
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
 use crate::{PI, OPT};
-use crate::common_util::apply_pbc;
+use crate::common_util::{apply_pbc, relative_to_global3, global_to_relative3};
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ellipsoid {
-    pos: [f64; 3], // [x, y, z]
+    rel_pos: [f64; 3], // [x, y, z]
+    global_pos: [f64; 3],
     quat: [f64; 4], // a + bi + cj + dk -> [a, b, c, d]
     semi_axes: [f64; 3], // for no rot, [x, y, z]
 }
 
 impl Ellipsoid {
     pub fn make_shape(a: f64, b: f64, c: f64) -> Self {
-        Ellipsoid { pos: [0.0, 0.0, 0.0], quat: [1.0, 0.0, 0.0, 0.0], semi_axes: [a, b, c] }
+        Ellipsoid { rel_pos: [0.0, 0.0, 0.0],
+                    global_pos: [0.0, 0.0, 0.0],
+                    quat: [1.0, 0.0, 0.0, 0.0],
+                    semi_axes: [a, b, c] }
     }
 
     // https://stackoverflow.com/questions/28446632/how-do-i-get-the-minimum-or-maximum-value-of-an-iterator-containing-floating-poi
@@ -44,7 +48,7 @@ impl Display for Ellipsoid {
     // From rust docs
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{} {} {} {} {} {} {} {} {} {}",
-               self.pos[0], self.pos[1], self.pos[2],
+               self.rel_pos[0], self.rel_pos[1], self.rel_pos[2],
                self.quat[0], self.quat[1], self.quat[2],
                self.quat[3], self.semi_axes[0], self.semi_axes[1],
                self.semi_axes[2]
@@ -69,18 +73,21 @@ impl Particle for Ellipsoid {
         let params: Vec<f64> = line.split_whitespace()
             .map(|x| x.parse().unwrap())
             .collect();
-        Ellipsoid { pos: [params[0], params[1], params[2]], 
+        let rel_pos = [params[0], params[1], params[2]];
+        let global_pos = relative_to_global3(unit_cell, &rel_pos);
+        Ellipsoid { rel_pos,
+                    global_pos,
                     quat: [params[3], params[4], params[5], params[6]],
                     semi_axes: [params[7], params[8], params[9]] } 
     }
 
     fn check_overlap(&self, other: &Self, offset: &[f64]) -> bool {
-        let image_x = other.pos[0] + offset[0];
-        let image_y = other.pos[1] + offset[1];
-        let image_z = other.pos[2] + offset[2];
-        let disp_x = self.pos[0] - image_x;
-        let disp_y = self.pos[1] - image_y;
-        let disp_z = self.pos[2] - image_z;
+        let image_x = other.global_pos[0] + offset[0];
+        let image_y = other.global_pos[1] + offset[1];
+        let image_z = other.global_pos[2] + offset[2];
+        let disp_x = self.global_pos[0] - image_x;
+        let disp_y = self.global_pos[1] - image_y;
+        let disp_z = self.global_pos[2] - image_z;
         let disp2 = disp_x.powi(2) + disp_y.powi(2) + disp_z.powi(2);
         // Pre-check, as suggested in Hard Convex Body Fluids
         // Try and avoid evaluating PW potential by checking inner and outer
@@ -228,12 +235,12 @@ impl Particle for Ellipsoid {
         let qnorm = (q0*q0 + q1*q1 + q2*q2 + q3*q3).sqrt();
         q0 /= qnorm; q1 /= qnorm; q2 /= qnorm; q3 /= qnorm;
         // Turn lattice coords into euclidean coords
-        Ellipsoid { pos: 
-            [ lat_x*cell[DIM*0 + 0] + lat_y*cell[DIM*1 + 0] + lat_z*cell[DIM*2 + 0],
-              lat_x*cell[DIM*0 + 1] + lat_y*cell[DIM*1 + 1] + lat_z*cell[DIM*2 + 1],
-              lat_x*cell[DIM*0 + 2] + lat_y*cell[DIM*1 + 2] + lat_z*cell[DIM*2 + 2]],
-            quat: [ q0, q1, q2, q3 ],
-            semi_axes: self.semi_axes }
+        let rel_pos = [lat_x, lat_y, lat_z];
+        let global_pos = relative_to_global3(cell, &rel_pos);
+        Ellipsoid { rel_pos, 
+                    global_pos,
+                    quat: [ q0, q1, q2, q3 ],
+                    semi_axes: self.semi_axes }
     }
 
     fn perturb(&mut self,
@@ -251,15 +258,18 @@ impl Particle for Ellipsoid {
         let move_type = uni_dist.sample(rng) <= 0.5;
         // Apply translation
         if OPT.combined_move || !move_type {
-            for x in &mut self.pos {
+            for x in &mut self.global_pos {
                 *x += normal_trans.sample(rng);
                 if !x.is_normal() {
                     panic!();
                 }
             }
-
+            let uncorrected_rel = global_to_relative3(cell, &self.global_pos);
+            // Handle pbc 
             // https://stackoverflow.com/questions/25428920/how-to-get-a-slice-as-an-array-in-rust
-            self.pos = apply_pbc(&self.pos).as_slice().try_into().unwrap();
+            self.rel_pos = apply_pbc(&uncorrected_rel).as_slice().try_into().unwrap();
+            // Recalculate global
+            self.global_pos = relative_to_global3(cell, &self.rel_pos);
         }
         // Apply rotation, strategy adapted from Frenkel and Mulder he of revolution paper
         if OPT.combined_move || move_type {
@@ -284,6 +294,7 @@ impl Particle for Ellipsoid {
     // From S. Torquato and Y. Jiao PRE 80, 041104 (2009)
     // Also need nalgebra
     fn apply_strain(&mut self, new_cell: &[f64]) {
+        self.global_pos = relative_to_global3(new_cell, &self.rel_pos);
     }
 
     fn init_obs() -> Vec<f64> {
@@ -342,6 +353,55 @@ impl Particle for Ellipsoid {
     }
 
     fn lat_coord(&self) -> Vec<f64> {
-        unimplemented!()
+        self.rel_pos.to_vec()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand_xoshiro::rand_core::SeedableRng;
+
+    #[test]
+    fn zero_inversion_perturb() {
+        // Cell selected by changing by hand until test passes,
+        // since this is just a regression test
+        // Needs to be different from the one below
+        let mut rng = Xoshiro256StarStar::seed_from_u64(0);
+        let cell = [219.0232, -4200.21983, -2300.123123, 8443.5, 2213.4, -231.15, 5200.2, -2002.1, 231.24];
+        let mut ellipsoid: Ellipsoid = Particle::parse("0.0 0.3 0.22 1.0 0.0 0.0 0.0 2.0 1.0 1.0", &cell);
+        println!("{}", ellipsoid);
+        ellipsoid.perturb(&cell, &[0.0, 0.3], &mut rng);
+        println!("{}", ellipsoid);
+        let local = global_to_relative3(&cell, &ellipsoid.global_pos);
+        assert!(local[0] < 0.0);
+        assert!(ellipsoid.rel_pos[0] >= 0.0 && ellipsoid.rel_pos[0] < 1.0);
+        assert!(ellipsoid.rel_pos[1] >= 0.0 && ellipsoid.rel_pos[1] < 1.0);
+        assert!(ellipsoid.rel_pos[2] >= 0.0 && ellipsoid.rel_pos[2] < 1.0);
+        let local_pbc = apply_pbc(&local);
+        assert!(local_pbc[0] >= 0.0 && local_pbc[0] < 1.0);
+        assert!(local_pbc[1] >= 0.0 && local_pbc[1] < 1.0);
+        assert!(local_pbc[2] >= 0.0 && local_pbc[2] < 1.0);
+    }
+    
+    #[test]
+    fn zero_inversion_strain() {
+        // Cell selected by changing by hand until test passes,
+        // since this is just a regression test
+        let mut rng = Xoshiro256StarStar::seed_from_u64(0);
+        let old_cell = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        let cell = [2100.0232, -2000.21983, -230.0, 833.5, 2.4, -231.15, 5.2, -200.1, 21.24];
+        let mut ellipsoid: Ellipsoid = Particle::parse("0.0 0.3 0.22 1.0 0.0 0.0 0.0 2.0 1.0 1.0", &old_cell);
+        ellipsoid.apply_strain(&cell);
+        let local = global_to_relative3(&cell, &ellipsoid.global_pos);
+        assert!(local[0] < 0.0);
+        assert!(ellipsoid.rel_pos[0] >= 0.0 && ellipsoid.rel_pos[0] < 1.0);
+        assert!(ellipsoid.rel_pos[1] >= 0.0 && ellipsoid.rel_pos[1] < 1.0);
+        assert!(ellipsoid.rel_pos[2] >= 0.0 && ellipsoid.rel_pos[2] < 1.0);
+        let local_pbc = apply_pbc(&local);
+        println!("{:?}", local_pbc);
+        assert!(local_pbc[0] >= 0.0 && local_pbc[0] < 1.0);
+        assert!(local_pbc[1] >= 0.0 && local_pbc[1] < 1.0);
+        assert!(local_pbc[2] >= 0.0 && local_pbc[2] < 1.0);
     }
 }
