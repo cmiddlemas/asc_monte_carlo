@@ -164,14 +164,15 @@ mod tests {
     fn zero_inversion_perturb() {
         // Cell selected by changing by hand until test passes,
         // since this is just a regression test
+        // Needs to be different from the one below
         let mut rng = Xoshiro256StarStar::seed_from_u64(0);
-        let cell = [2100.0232, -2000.21983, -230.0, 833.5, 2.4, -231.15, 5.2, -200.1, 21.24];
+        let cell = [219.0232, -4200.21983, -2300.123123, 8443.5, 2213.4, -231.15, 5200.2, -2002.1, 231.24];
         let mut sphere: Sphere = Particle::parse("0.0 0.3 0.22 1.0", &cell);
         println!("{}", sphere);
         sphere.perturb(&cell, &[0.0], &mut rng);
         println!("{}", sphere);
         let local = global_to_relative3(&cell, &sphere.global_pos);
-        //assert!(local[0] < 0.0);
+        assert!(local[0] < 0.0);
         assert!(sphere.rel_pos[0] >= 0.0 && sphere.rel_pos[0] < 1.0);
         assert!(sphere.rel_pos[1] >= 0.0 && sphere.rel_pos[1] < 1.0);
         assert!(sphere.rel_pos[2] >= 0.0 && sphere.rel_pos[2] < 1.0);
