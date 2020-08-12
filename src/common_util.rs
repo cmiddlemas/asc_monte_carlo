@@ -4,6 +4,7 @@ use rand_distr::{Normal, Distribution};
 use rand::Rng;
 use rand_xoshiro::Xoshiro256StarStar;
 use crate::schedule::Schedule;
+use crate::OPT;
 
 // TODO: Make return type non-dynamic for abstraction over dimension
 // Applies periodic boundary conditions to a set of lattice coordinates
@@ -75,58 +76,69 @@ pub fn gen_random_strain<P>(dim: usize,
     let axi_dist = Normal::new(0.0, schedule.cell_param[2])
         .unwrap();
     
-    // Choose random strain
-    match dim {
-        2 => {
-            // Choose strain
-            let iso = iso_dist.sample(rng);
-            let shear = shear_dist.sample(rng);
-            let axi = axi_dist.sample(rng);
-            let strain = Matrix2::from_row_slice(
-                &[iso + axi, shear, shear, iso - axi]
-            );
-            let trace_strain = 2.0*iso;
-            // Change unit cell
-            // Implicit transposition in read order
-            // Noticed that this is necessary due to older
-            // group code, courtesy of Duyu, Steve, and Yang
-            let old_cell_mat = Matrix2::from_column_slice(&old_cell);
-            let new_cell_mat = old_cell_mat + strain*old_cell_mat;
+    if OPT.exact_volume_step {
+        let dimf = dim as f64;
+        let old_vol = volume(dim, old_cell);
+        let v_step = iso_dist.sample(rng);
+        let rel_change = ((v_step + old_vol)/old_vol).powf(1.0/dimf);
+        let new_cell = old_cell.iter()
+                               .map(|&x| x*rel_change)
+                               .collect();
+        (rel_change - 1.0, new_cell)
+    } else {
+        // Choose random strain
+        match dim {
+            2 => {
+                // Choose strain
+                let iso = iso_dist.sample(rng);
+                let shear = shear_dist.sample(rng);
+                let axi = axi_dist.sample(rng);
+                let strain = Matrix2::from_row_slice(
+                    &[iso + axi, shear, shear, iso - axi]
+                );
+                let trace_strain = 2.0*iso;
+                // Change unit cell
+                // Implicit transposition in read order
+                // Noticed that this is necessary due to older
+                // group code, courtesy of Duyu, Steve, and Yang
+                let old_cell_mat = Matrix2::from_column_slice(&old_cell);
+                let new_cell_mat = old_cell_mat + strain*old_cell_mat;
 
-            (trace_strain, new_cell_mat.as_slice().to_vec())
-        }
-        3 => {
-            // Choose strain
-            let iso = iso_dist.sample(rng);
-            let shear1 = shear_dist.sample(rng);
-            let shear2 = shear_dist.sample(rng);
-            let shear3 = shear_dist.sample(rng);
-            let axi1 = axi_dist.sample(rng);
-            let axi2 = axi_dist.sample(rng);
-            
-            let axis_choice: usize = rng.gen_range(0,3);
-            let d1; let d2; let d3;
-            match axis_choice {
-                0 => {d1 = iso + axi1; d2 = iso + axi2; d3 = iso - axi1 - axi2},
-                1 => {d1 = iso - axi1 - axi2; d2 = iso + axi1; d3 = iso + axi2},
-                2 => {d1 = iso + axi2; d2 = iso - axi1 - axi2; d3 = iso + axi1},
-                _ => unreachable!(),
+                (trace_strain, new_cell_mat.as_slice().to_vec())
             }
-            
-            let strain = Matrix3::from_row_slice(&[d1, shear1, shear2,
-                                                   shear1, d2, shear3,
-                                                   shear2, shear3, d3]);
-            let trace_strain = 3.0*iso;
-            // Change unit cell
-            // Implicit transposition in read order
-            // Noticed that this is necessary due to older
-            // group code, courtesy of Duyu, Steve, and Yang
-            let old_cell_mat = Matrix3::from_column_slice(&old_cell);
-            let new_cell_mat = old_cell_mat + strain*old_cell_mat;
+            3 => {
+                // Choose strain
+                let iso = iso_dist.sample(rng);
+                let shear1 = shear_dist.sample(rng);
+                let shear2 = shear_dist.sample(rng);
+                let shear3 = shear_dist.sample(rng);
+                let axi1 = axi_dist.sample(rng);
+                let axi2 = axi_dist.sample(rng);
+                
+                let axis_choice: usize = rng.gen_range(0,3);
+                let d1; let d2; let d3;
+                match axis_choice {
+                    0 => {d1 = iso + axi1; d2 = iso + axi2; d3 = iso - axi1 - axi2},
+                    1 => {d1 = iso - axi1 - axi2; d2 = iso + axi1; d3 = iso + axi2},
+                    2 => {d1 = iso + axi2; d2 = iso - axi1 - axi2; d3 = iso + axi1},
+                    _ => unreachable!(),
+                }
+                
+                let strain = Matrix3::from_row_slice(&[d1, shear1, shear2,
+                                                       shear1, d2, shear3,
+                                                       shear2, shear3, d3]);
+                let trace_strain = 3.0*iso;
+                // Change unit cell
+                // Implicit transposition in read order
+                // Noticed that this is necessary due to older
+                // group code, courtesy of Duyu, Steve, and Yang
+                let old_cell_mat = Matrix3::from_column_slice(&old_cell);
+                let new_cell_mat = old_cell_mat + strain*old_cell_mat;
 
-            (trace_strain, new_cell_mat.as_slice().to_vec())
+                (trace_strain, new_cell_mat.as_slice().to_vec())
+            }
+            _ => unimplemented!(),
         }
-        _ => unimplemented!(),
     }
 }
 

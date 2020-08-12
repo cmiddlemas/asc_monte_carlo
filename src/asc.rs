@@ -98,9 +98,13 @@ where
             let new_vol = self.cell_volume();
             let old_vol = old_asc.cell_volume();
             let n_particles = self.n_particles() as f64;
-            let vol_factor = 
+            let vol_factor = if OPT.linear_acceptance {
+                (-schedule.beta*schedule.pressure*old_vol*trace_strain
+                 +n_particles*((1.0 + trace_strain).ln())).exp()
+            } else {
                 (-schedule.beta*schedule.pressure*(new_vol - old_vol)
-                 +n_particles*(new_vol/old_vol).ln()).exp();
+                 +n_particles*((new_vol/old_vol).ln())).exp()
+            };
             if uni_dist.sample(rng) < vol_factor { //Keep config
                 P::sample_obs_accepted_cmove(
                     schedule,
