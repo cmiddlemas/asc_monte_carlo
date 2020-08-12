@@ -154,7 +154,6 @@ impl Particle for Ellipse {
                                rng: &mut Xoshiro256StarStar
     ) -> Self
     {
-        const DIM: usize = 2;
         let uni_dist = Uniform::new(0.0, 1.0);
         let lat_x = uni_dist.sample(rng);
         let lat_y = uni_dist.sample(rng);

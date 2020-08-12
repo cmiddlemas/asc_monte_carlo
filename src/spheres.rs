@@ -4,7 +4,6 @@ use rand_distr::{Uniform, Distribution, Normal};
 use std::fmt::{Display, Formatter};
 use std::fmt;
 use std::convert::TryInto;
-use nalgebra::{Matrix3, Vector3};
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
 use crate::PI;
