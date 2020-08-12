@@ -6,19 +6,17 @@
 // Uses a naive "overbox" implementation to achieve pbc
 use std::fmt::{Debug, Display};
 use rand_xoshiro::Xoshiro256StarStar;
-use rand::Rng;
 use itertools::{Itertools, Position};
 use std::path::Path;
 use std::fs::{File, OpenOptions};
 use std::io::{Write, BufWriter, BufReader, BufRead};
 use std::path::PathBuf;
 use rayon::prelude::*;
-use rand_distr::{Uniform, Normal, Distribution};
-use nalgebra::{Matrix2, Matrix3};
+use rand_distr::{Uniform, Distribution};
 use crate::schedule::Schedule;
 use crate::OPT;
 use crate::asc::Asc;
-use crate::common_util::volume;
+use crate::common_util::{volume, gen_random_strain};
 use crate::particle::Particle;
 
 // Free helper functions
@@ -279,106 +277,28 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
         }
     }
 
-    fn try_cell_move(&mut self,
-                         schedule: &mut Schedule<P>,
-                         rng: &mut Xoshiro256StarStar
-    ) -> bool
-    {
-        let iso_dist = Normal::new(0.0, schedule.cell_param[0])
-            .unwrap();
-        let shear_dist = Normal::new(0.0, schedule.cell_param[1])
-            .unwrap();
-        let axi_dist = Normal::new(0.0, schedule.cell_param[2])
-            .unwrap();
-        let uni_dist = Uniform::new(0.0, 1.0); // for probabilities
-
-        let old_asc = self.clone();
-        
-        match self.dim {
-            2 => {
-                // Choose strain
-                let iso = iso_dist.sample(rng);
-                let shear = shear_dist.sample(rng);
-                let axi = axi_dist.sample(rng);
-                let strain = Matrix2::from_row_slice(
-                    &[iso + axi, shear, shear, iso - axi]
-                );
-                // Change unit cell
-                // Implicit transposition in read order
-                // Noticed that this is necessary due to older
-                // group code, courtesy of Duyu, Steve, and Yang
-                let current_cell = Matrix2::from_column_slice(&self.cell);
-                let new_cell = current_cell + strain*current_cell;
-                self.cell = new_cell.as_slice().to_vec();
-            }
-            3 => {
-                // Choose strain
-                let iso = iso_dist.sample(rng);
-                let shear1 = shear_dist.sample(rng);
-                let shear2 = shear_dist.sample(rng);
-                let shear3 = shear_dist.sample(rng);
-                let axi1 = axi_dist.sample(rng);
-                let axi2 = axi_dist.sample(rng);
-                
-                let axis_choice: usize = rng.gen_range(0,3);
-                let d1; let d2; let d3;
-                match axis_choice {
-                    0 => {d1 = iso + axi1; d2 = iso + axi2; d3 = iso - axi1 - axi2},
-                    1 => {d1 = iso - axi1 - axi2; d2 = iso + axi1; d3 = iso + axi2},
-                    2 => {d1 = iso + axi2; d2 = iso - axi1 - axi2; d3 = iso + axi1},
-                    _ => unreachable!(),
-                }
-                
-                let strain = Matrix3::from_row_slice(&[d1, shear1, shear2,
-                                                       shear1, d2, shear3,
-                                                       shear2, shear3, d3]);
-                // Change unit cell
-                // Implicit transposition in read order
-                let current_cell = Matrix3::from_column_slice(&self.cell);
-                let new_cell = current_cell + strain*current_cell;
-                self.cell = new_cell.as_slice().to_vec();
-            }
-            _ => unimplemented!(),
-        }
+    fn apply_random_strain(&mut self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> f64 {
+    // Choose random strain
+        let (trace_strain, new_cell) = gen_random_strain(self.dim, &self.cell, schedule, rng);
+        // Apply strain to cell
+        self.cell = new_cell;
+                        
         // Kinda weird, need to do ref outside of closure
         // https://stackoverflow.com/questions/48717833/how-to-use-struct-self-in-member-method-closure
         let new_cell = &self.cell;
         // Change particles
-        self.p_vec.par_iter_mut().for_each(|p| {
-            p.apply_strain(new_cell);
-        });
-        if self.is_valid() { // Accept probabilistically
-            // http://www.pages.drexel.edu/~cfa22/msim/node31.html
-            let new_vol = self.cell_volume();
-            let old_vol = old_asc.cell_volume();
-            let n_particles = self.p_vec.len() as f64;
-            let vol_factor = 
-                (-schedule.beta*schedule.pressure*(new_vol - old_vol)
-                 +n_particles*(new_vol/old_vol).ln()).exp();
-            if uni_dist.sample(rng) < vol_factor { //Keep config
-                P::sample_obs_accepted_cmove(
-                    schedule,
-                    self,
-                    &old_asc.cell
-                );
-                true
-            } else { //Reset config
-                *self = old_asc;
-                P::sample_obs_failed_move(
-                    schedule,
-                    self
-                );
-                false
-            }
-        } else { // Reset config
-            *self = old_asc;
-            P::sample_obs_failed_move(
-                schedule,
-                self
-            );
-            false
+        if OPT.no_rayon {
+            self.p_vec.iter_mut().for_each(|p| {
+                p.apply_strain(new_cell);
+            });
+        } else {
+            self.p_vec.par_iter_mut().for_each(|p| {
+                p.apply_strain(new_cell);
+            });
         }
-    }
+     
+        trace_strain
+    }   
 
     fn try_particle_move(&mut self,
                              schedule: &mut Schedule<P>,
@@ -412,6 +332,8 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
     fn n_particles(&self) -> usize { 
         self.p_vec.len()
     }
+    
+    fn unit_cell(&self) -> &[f64] { &self.cell }
 
     fn first_particle(&self) -> &P {
         &self.p_vec[0]

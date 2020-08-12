@@ -10,6 +10,7 @@ use crate::OPT;
 use crate::schedule::Schedule;
 use crate::particle::Particle;
 use std::fs::{OpenOptions, rename};
+use rand_distr::{Uniform, Distribution};
 
 pub fn save_asc_from_opt<C, P: Particle + Debug + Display + Send + Sync + Clone>
     (config: &C, annotation: &str)
@@ -61,7 +62,9 @@ pub fn save_asc_from_opt<C, P: Particle + Debug + Display + Send + Sync + Clone>
 }
 
 pub trait Asc<P> 
-where P: Particle + Debug + Display + Send + Sync + Clone 
+where 
+    P: Particle + Debug + Display + Send + Sync + Clone,
+    Self: std::marker::Sized + Clone
 {
     // Print configuration onto stdout
     fn print_asc(&self);
@@ -78,14 +81,59 @@ where P: Particle + Debug + Display + Send + Sync + Clone
     // True if no overlaps
     fn is_valid(&self) -> bool;
 
+    // Applies a random strain to configuration. Does not check overlap, but will rebuild
+    // acceleration structures if necessary
+    fn apply_random_strain(&mut self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> f64;
+
     // Try to change the cell by straining
-    fn try_cell_move(&mut self, schedule: &mut Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool;
+    fn try_cell_move(&mut self, schedule: &mut Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool {
+        let old_asc = self.clone();
+
+        let trace_strain = self.apply_random_strain(schedule, rng);
+
+        let uni_dist = Uniform::new(0.0, 1.0); // for probabilities
+        
+        if self.is_valid() { // Accept probabilistically
+            // http://www.pages.drexel.edu/~cfa22/msim/node31.html
+            let new_vol = self.cell_volume();
+            let old_vol = old_asc.cell_volume();
+            let n_particles = self.n_particles() as f64;
+            let vol_factor = 
+                (-schedule.beta*schedule.pressure*(new_vol - old_vol)
+                 +n_particles*(new_vol/old_vol).ln()).exp();
+            if uni_dist.sample(rng) < vol_factor { //Keep config
+                P::sample_obs_accepted_cmove(
+                    schedule,
+                    self,
+                    old_asc.unit_cell()
+                );
+                true
+            } else { //Reset config
+                *self = old_asc;
+                P::sample_obs_failed_move(
+                    schedule,
+                    self
+                );
+                false
+            }
+        } else { // Reset config
+            *self = old_asc;
+            P::sample_obs_failed_move(
+                schedule,
+                self
+            );
+            false
+        }
+    }
 
     // Try to move a particle
     fn try_particle_move(&mut self, schedule: &mut Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool;
 
     // Return number of particles in Asc
     fn n_particles(&self) -> usize;
+
+    // Return a slice that gives the unit cell
+    fn unit_cell(&self) -> &[f64];
 
     // Return a reference to the first particle stored in Asc
     fn first_particle(&self) -> &P;

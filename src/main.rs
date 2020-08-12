@@ -157,6 +157,10 @@ struct Opt {
     #[structopt(long, default_value = "1.0")]
     ipressure: f64,
 
+    /// Use linearization of strain energy for acceptance criterion?
+    #[structopt(long)]
+    linear_acceptance: bool,
+
     /// Initial shear step width
     #[structopt(long, default_value = "0.01")]
     shear: f64,
@@ -168,6 +172,12 @@ struct Opt {
     /// Initial isotropic volume change step width
     #[structopt(long, default_value = "0.01")]
     isotropic: f64,
+
+    /// Use an exact method for choosing volume step? If given,
+    /// program will ignore --shear and --axial, and only perform
+    /// isotropic dilations/compressions
+    #[structopt(long)]
+    exact_volume_step: bool,
 
     /// Should the program adjust the step sizes
     /// to try and keep acceptance ratio between
