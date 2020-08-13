@@ -85,6 +85,12 @@ pub fn gen_random_strain<P>(dim: usize,
                                .map(|&x| x*rel_change)
                                .collect();
         (rel_change - 1.0, new_cell)
+    } else if OPT.log_volume_step {
+        let log_step = iso_dist.sample(rng);
+        let new_cell = old_cell.iter()
+                               .map(|&x| x*(log_step.exp()))
+                               .collect();
+        ((dim as f64)*log_step, new_cell)
     } else {
         // Choose random strain
         match dim {

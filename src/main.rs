@@ -179,6 +179,13 @@ struct Opt {
     #[structopt(long)]
     exact_volume_step: bool,
 
+    /// Use an exact method, but step in log volume. This allows one
+    /// to draw a direct connection between --isotropic using an exact
+    /// method and one using the approximate linear method needed for
+    /// anisotropic deformation using the Torquato ASC method
+    #[structopt(long)]
+    log_volume_step: bool,
+
     /// Should the program adjust the step sizes
     /// to try and keep acceptance ratio between
     /// adjust_upper and adjust_lower?
