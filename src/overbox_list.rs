@@ -277,7 +277,7 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
         }
     }
 
-    fn apply_random_strain(&mut self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> f64 {
+    fn apply_random_strain(mut self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> Option<(Self, f64)> {
     // Choose random strain
         let (trace_strain, new_cell) = gen_random_strain(self.dim, &self.cell, schedule, rng);
         // Apply strain to cell
@@ -297,7 +297,7 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
             });
         }
      
-        trace_strain
+        Some((self, trace_strain))
     }   
 
     fn try_particle_move(&mut self,

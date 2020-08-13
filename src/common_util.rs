@@ -76,8 +76,8 @@ pub fn gen_random_strain<P>(dim: usize,
     let axi_dist = Normal::new(0.0, schedule.cell_param[2])
         .unwrap();
     
+    let dimf = dim as f64;
     if OPT.exact_volume_step {
-        let dimf = dim as f64;
         let old_vol = volume(dim, old_cell);
         let v_step = iso_dist.sample(rng);
         let rel_change = ((v_step + old_vol)/old_vol).powf(1.0/dimf);
@@ -88,9 +88,9 @@ pub fn gen_random_strain<P>(dim: usize,
     } else if OPT.log_volume_step {
         let log_step = iso_dist.sample(rng);
         let new_cell = old_cell.iter()
-                               .map(|&x| x*(log_step.exp()))
+                               .map(|&x| x*(log_step.exp().powf(1.0/dimf)))
                                .collect();
-        ((dim as f64)*log_step, new_cell)
+        (dimf*log_step, new_cell)
     } else {
         // Choose random strain
         match dim {

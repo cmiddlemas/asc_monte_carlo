@@ -122,6 +122,9 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> CellList<P> {
         self.lin_subdiv = if max_subdiv > OPT.subdiv_offset {
             max_subdiv - OPT.subdiv_offset
         } else {
+            eprintln!("max_subdiv = {}", max_subdiv);
+            eprintln!("cell = {:?}", &self.unit_cell);
+            eprintln!("vol = {:?}", self.cell_volume());
             panic!("subdiv_offset exceeds max_subdiv");
         };
 
@@ -362,7 +365,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
         }
     }
     
-    fn apply_random_strain(&mut self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> f64 {
+    fn apply_random_strain(mut self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> Option<(Self, f64)> {
         // Choose random strain
         let (trace_strain, new_cell) = gen_random_strain(self.dim, &self.unit_cell, schedule, rng);
         // Apply strain to cell
@@ -384,13 +387,14 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
     
         // check to see if we need a cell list rebuild
         let max_radius = self.first_particle().hint_upper();
-        if self.lin_subdiv 
-            > max_subdiv(self.dim, &self.unit_cell, max_radius)
-        {
+        let max_subdiv = max_subdiv(self.dim, &self.unit_cell, max_radius);
+        if max_subdiv < 1 { 
+            return None;
+        } else if self.lin_subdiv > max_subdiv {
             self.build_cell_list();
         }
 
-        trace_strain
+        Some((self, trace_strain))
     }
 
     // Try to move a particle

@@ -83,56 +83,69 @@ where
 
     // Applies a random strain to configuration. Does not check overlap, but will rebuild
     // acceleration structures if necessary
-    fn apply_random_strain(&mut self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> f64;
+    // Returns an option with (Asc object, trace_strain), if None, it means that the
+    // strain attempt failed to produce a valid object, and the given object is consumed.
+    fn apply_random_strain(self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> Option<(Self, f64)>;
 
     // Try to change the cell by straining
     fn try_cell_move(&mut self, schedule: &mut Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool {
-        let old_asc = self.clone();
+        let new_asc = self.clone();
 
-        let trace_strain = self.apply_random_strain(schedule, rng);
-
-        let uni_dist = Uniform::new(0.0, 1.0); // for probabilities
-        
-        if self.is_valid() { // Accept probabilistically
-            // http://www.pages.drexel.edu/~cfa22/msim/node31.html
-            let new_vol = self.cell_volume();
-            let old_vol = old_asc.cell_volume();
-            let n_particles = self.n_particles() as f64;
-            let vol_factor = if OPT.log_volume_step {
-                // This taken from Frenkel and Smit UMS 2nd Ed. (2002)
-                // among other places
-                (-schedule.beta*schedule.pressure*(new_vol - old_vol)
-                    +(n_particles + 1.0)*((new_vol/old_vol).ln())).exp()
-            } else {
-                if OPT.linear_acceptance {
-                    (-schedule.beta*schedule.pressure*old_vol*trace_strain
-                    +n_particles*((1.0 + trace_strain).ln())).exp()
-                } else {
+        // This implementation switched because cannot drop through an &mut
+        // https://doc.rust-lang.org/book/ch15-03-drop.html
+        if let Some((new_asc, trace_strain)) = new_asc.apply_random_strain(schedule, rng) {
+            let uni_dist = Uniform::new(0.0, 1.0); // for probabilities
+            
+            if new_asc.is_valid() { // Accept probabilistically
+                // http://www.pages.drexel.edu/~cfa22/msim/node31.html
+                let new_vol = new_asc.cell_volume();
+                let old_vol = self.cell_volume();
+                let n_particles = new_asc.n_particles() as f64;
+                let vol_factor = if OPT.log_volume_step {
+                    // This taken from Frenkel and Smit UMS 2nd Ed. (2002)
+                    // among other places
                     (-schedule.beta*schedule.pressure*(new_vol - old_vol)
-                    +n_particles*((new_vol/old_vol).ln())).exp()
+                        +(n_particles + 1.0)*((new_vol/old_vol).ln())).exp()
+                } else {
+                    if OPT.linear_acceptance {
+                        (-schedule.beta*schedule.pressure*old_vol*trace_strain
+                        +n_particles*((1.0 + trace_strain).ln())).exp()
+                    } else {
+                        (-schedule.beta*schedule.pressure*(new_vol - old_vol)
+                        +n_particles*((new_vol/old_vol).ln())).exp()
+                    }
+                };
+                if uni_dist.sample(rng) < vol_factor { //Keep config
+                    P::sample_obs_accepted_cmove(
+                        schedule,
+                        &new_asc,
+                        self.unit_cell()
+                    );
+                    // Set self to successful configuration
+                    *self = new_asc;
+                    true
+                } else {
+                    P::sample_obs_failed_move(
+                        schedule,
+                        self
+                    );
+                    false
                 }
-            };
-            if uni_dist.sample(rng) < vol_factor { //Keep config
-                P::sample_obs_accepted_cmove(
-                    schedule,
-                    self,
-                    old_asc.unit_cell()
-                );
-                true
-            } else { //Reset config
-                *self = old_asc;
+            } else {
                 P::sample_obs_failed_move(
                     schedule,
                     self
                 );
                 false
             }
-        } else { // Reset config
-            *self = old_asc;
-            P::sample_obs_failed_move(
-                schedule,
-                self
-            );
+        } else {
+            // Assume that the failure of apply_random_strain is due to
+            // a configuration that would have been invalid anyway, if
+            // it was possible for the underlying data structure to keep
+            // working
+            // Log a warning, since this is unexpected, but not necessarily incorrect
+            // behavior, it is likely due to setting cell changes too large
+            eprintln!("Warning: failure to strain cell because data structure became invalid");
             false
         }
     }
