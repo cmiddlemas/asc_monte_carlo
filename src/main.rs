@@ -153,9 +153,9 @@ struct Opt {
     #[structopt(long, default_value = "1.0")]
     radius: f64,
 
-    /// Initial pressure of system
+    /// Pressure of system
     #[structopt(long, default_value = "1.0")]
-    ipressure: f64,
+    pressure: f64,
 
     /// Use linearization of strain energy for acceptance criterion?
     #[structopt(long)]
@@ -211,6 +211,16 @@ struct Opt {
     /// Optional file holding initial configuration
     #[structopt(long)]
     initfile: Option<PathBuf>,
+
+    /// Optional file holding initial Schedule in json format.
+    /// Invalidates the following options:
+    /// --moves, --pressure, --pcell, --isotropic, --shear, --axial,
+    /// --dtrans, --drot.
+    /// Still uses the following option, despite reading a value
+    /// for that parameter in json file:
+    /// --sweeps.
+    #[structopt(long)]
+    schedulefile: Option<PathBuf>,
 
     /// Turns off clamping of strain parameters, warning, may
     /// violate equilibrium conditions
@@ -268,7 +278,12 @@ fn make_and_run_schedule<C, P: Particle + Clone + Debug + Display + Send + Sync>
         config.print_asc();
     }
     save_asc_from_opt(&config, "initial");
-    let mut schedule = Schedule::make(config.first_particle());
+    // https://doc.rust-lang.org/std/option/enum.Option.html
+    let mut schedule = if let Some(path) = &OPT.schedulefile {
+        Schedule::from_file(path)
+    } else {
+        Schedule::make(config.first_particle())
+    };
     println!("Running schedule:");
     println!("{:?}", schedule);
     schedule.run(&mut config, rng);
@@ -278,6 +293,7 @@ fn make_and_run_schedule<C, P: Particle + Clone + Debug + Display + Send + Sync>
         println!("Final Configuration:");
         config.print_asc();
     }
+    schedule.save_in_log();
     save_asc_from_opt(&config, "final");
     println!("Ending program at: {}", Utc::now());
 }

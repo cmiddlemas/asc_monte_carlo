@@ -3,10 +3,12 @@ use rand_xoshiro::Xoshiro256StarStar;
 use rand_distr::{Uniform, Distribution};
 use std::marker::PhantomData;
 use std::fmt::{Debug, Display};
-use std::fs::OpenOptions;
-use std::io::Write;
+use std::path::PathBuf;
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
 use crate::OPT;
 use crate::particle::Particle;
+use serde::{Serialize, Deserialize};
 
 pub fn write_sweep_log(logline: &str) {
     if let Some(logroot) = &OPT.logfiles {
@@ -27,7 +29,8 @@ pub fn write_sweep_log(logline: &str) {
     }
 }
 
-#[derive(Debug)]
+// https://github.com/serde-rs/serde
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Schedule<P> {
     pub current_sweep: usize,
     pub particle_accepts: Vec<usize>,
@@ -64,7 +67,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
             cell_tries: 0,
             n_sweeps: OPT.sweeps,
             n_moves: OPT.moves,
-            pressure: OPT.ipressure,
+            pressure: OPT.pressure,
             p_cell_move: OPT.pcell,
             cell_param: vec![OPT.isotropic, OPT.shear, OPT.axial],
             particle_param: p_param,
@@ -93,6 +96,52 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
             }
         }
 
+        schedule
+    }
+
+    pub fn save_in_log(&self) {
+        if let Some(logroot) = &OPT.logfiles {
+            let mut logpath = logroot.clone();
+            logpath.set_file_name(
+                format!("{}_schedule.json",
+                    logroot.file_name().expect("Must give valid root filename for logfile")
+                        .to_str().expect("Valid utf-8")
+                ));
+            // Referenced rust docs for std
+            let mut logfile = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(logpath)
+                .expect("Must be able to write to logfile");
+            // https://github.com/serde-rs/serde
+            let serial = serde_json::to_string(self).unwrap();
+            write!(&mut logfile, "{}", serial)
+                .expect("Failed write to logfile");
+        }
+    }
+
+    // Sets a schedule using a json schedule. Overwrites
+    // only one field using the input from the command line, which is n_sweeps,
+    // since that just determines the length of the simulation,
+    // and has no physical effect
+    pub fn from_file(path: &PathBuf) -> Schedule<P> {
+        // Made extensive use of the rust docs for various
+        // std components when writing this function
+        let mut infile = File::open(path).expect("Schedule file must be valid");
+        let mut buf = String::new();
+        infile.read_to_string(&mut buf).expect("Must be able to read Schedule file");
+        // https://github.com/serde-rs/serde
+        let mut schedule: Schedule<P> = serde_json::from_str(&buf).unwrap();
+        schedule.n_sweeps = OPT.sweeps;
+        // Need to reset some counters, since some runs
+        // leave the counters unreset at the end so that
+        // things like accept ratios can be computed after
+        // the simulation
+        schedule.particle_accepts = vec![0, 0];
+        schedule.particle_tries = vec![0, 0];
+        schedule.cell_accepts = 0;
+        schedule.cell_tries = 0;
+        schedule.running_obs = P::init_obs();
         schedule
     }
 
