@@ -116,6 +116,8 @@ where
                     }
                 };
                 if uni_dist.sample(rng) < vol_factor { //Keep config
+                    //eprintln!("Old config! {}", self.cell_volume());
+                    //eprintln!("Look out, a config: {}", new_asc.cell_volume());
                     P::sample_obs_accepted_cmove(
                         schedule,
                         &new_asc,

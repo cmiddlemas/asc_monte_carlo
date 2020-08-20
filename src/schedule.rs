@@ -180,6 +180,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
     }
 
     fn post_sweep(&mut self) {
+        //eprintln!("Sweep the roads!");
         self.current_sweep += 1;
         // Adjust MC move parameters based on acceptance ratio
         // This simple algorithm keeps ratio between parameters the same

@@ -415,6 +415,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
             );
             false
         } else { //accept
+            //eprintln!("accept pmove");
             P::sample_obs_accepted_pmove(
                 schedule,
                 self,
