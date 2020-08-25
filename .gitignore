@@ -1,6 +1,7 @@
 /target
 **/*.rs.bk
-/test
 *.gif
 *.out
 *.test
+*.stderr
+*.stdout
