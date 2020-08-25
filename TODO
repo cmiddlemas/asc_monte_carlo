@@ -10,3 +10,5 @@ Cap translation at a reasonable value
 Allow tests to be run with options to libtest
     Currently isn't possible because OPT will try
     and parse the libtest command line on first access
+20 August 2020
+Add in dtrans cap and bounded perturbation code
