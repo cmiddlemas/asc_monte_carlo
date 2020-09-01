@@ -5,3 +5,5 @@
 *.test
 *.stderr
 *.stdout
+perf*
+flamegraph*

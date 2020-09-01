@@ -19,7 +19,6 @@ use std::path::Path;
 use itertools::{Itertools, Position};
 use std::fs::{File, OpenOptions};
 use std::io::{Write, BufWriter};
-use std::convert::TryInto;
 use rayon::prelude::*;
 use crate::common_util::gen_random_strain;
 
@@ -207,7 +206,8 @@ fn cells_around(cell: usize, dim: usize, lin_subdiv: usize, unit_cell: &[f64])
     let c = cell as isize;
     let l_s = lin_subdiv as isize;
 
-    let mut surrounding_list = Vec::new();
+    // prevent resizing for up to 3 dimensions
+    let mut surrounding_list = Vec::with_capacity(30);
     
     match dim {
         2 => {
@@ -240,7 +240,9 @@ fn cells_around(cell: usize, dim: usize, lin_subdiv: usize, unit_cell: &[f64])
 
                     let out_idx = pbc_x_idx + lin_subdiv*pbc_y_idx;
 
-                    surrounding_list.push((out_idx, offset.as_slice().try_into().unwrap()));
+                    // https://doc.rust-lang.org/std/convert/trait.From.html
+                    // https://doc.rust-lang.org/std/vec/struct.Vec.html#impl-From%3C%26%27_%20%5BT%5D%3E
+                    surrounding_list.push((out_idx, Vec::<f64>::from(offset.as_slice())));
 
                 }
             }
@@ -286,7 +288,7 @@ fn cells_around(cell: usize, dim: usize, lin_subdiv: usize, unit_cell: &[f64])
 
                         let out_idx = pbc_x_idx + lin_subdiv*pbc_y_idx + lin_subdiv*lin_subdiv*pbc_z_idx;
 
-                        surrounding_list.push((out_idx, offset.as_slice().try_into().unwrap()));
+                        surrounding_list.push((out_idx, Vec::<f64>::from(offset.as_slice())));
                     }
                 }
             }
