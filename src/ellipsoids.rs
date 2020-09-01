@@ -259,9 +259,7 @@ impl Particle for Ellipsoid {
         if OPT.combined_move || !move_type {
             for x in &mut self.global_pos {
                 *x += normal_trans.sample(rng);
-                if !x.is_normal() {
-                    panic!();
-                }
+                assert!(x.is_finite())
             }
             let uncorrected_rel = global_to_relative3(cell, &self.global_pos);
             // Handle pbc 

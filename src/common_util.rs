@@ -6,6 +6,27 @@ use rand_xoshiro::Xoshiro256StarStar;
 use crate::schedule::Schedule;
 use crate::OPT;
 
+// For FFI
+use libc::{c_double, size_t, c_int};
+
+#[link(name = "gsl")]
+extern "C" {
+    fn gsl_fit_wlinear(x: *const c_double,
+                       xstride: size_t,
+                       w: *const c_double,
+                       wstride: size_t,
+                       y: *const c_double,
+                       ystride: size_t,
+                       n: size_t,
+                       c0: *mut c_double,
+                       c1: *mut c_double,
+                       cov00: *mut c_double,
+                       cov01: *mut c_double,
+                       cov11: *mut c_double,
+                       chisq: *mut c_double) 
+        -> c_int;      
+}
+
 // TODO: Make return type non-dynamic for abstraction over dimension
 // Applies periodic boundary conditions to a set of lattice coordinates
 // See Ge's code, need to do this
@@ -148,6 +169,54 @@ pub fn gen_random_strain<P>(dim: usize,
     }
 }
 
+pub fn min_float_slice(slice: &[f64]) -> f64 {
+    let mut current_min = f64::INFINITY;
+    for f in slice {
+        if *f < current_min {
+            current_min = *f;
+        }
+    }
+    current_min
+}
+
+pub fn max_float_slice(slice: &[f64]) -> f64 {
+    let mut current_max = f64::NEG_INFINITY;
+    for f in slice {
+        if *f > current_max {
+            current_max = *f;
+        }
+    }
+    current_max
+}
+
+// Makes a linear fit y = a + bx to the given data
+// Goes by least squares
+// return
+// (a, b, unc_a, unc_b, chisq)
+// Currently implemented by calling out to GSL, may change
+// later
+// used many references regarding the unsafe portion
+// but these were the most useful
+// Also remember talking to Alex Ozdemir about something similar
+// https://doc.rust-lang.org/nomicon/ffi.html
+// https://doc.rust-lang.org/book/ch19-01-unsafe-rust.html
+// https://s3.amazonaws.com/temp.michaelfbryan.com/arrays/index.html
+pub fn linear_fit(data: &[[f64; 3]]) -> (f64, f64, f64, f64, f64) {
+    let x: Vec<f64> = data.iter().map(|v| v[0]).collect();
+    let y: Vec<f64> = data.iter().map(|v| v[1]).collect();
+    let w: Vec<f64> = data.iter().map(|v| 1.0/(v[2]*v[2])).collect();
+    let n = x.len();
+    let mut c0 = 0.0;
+    let mut c1 = 0.0;
+    let mut cov00 = 0.0;
+    let mut cov01 = 0.0;
+    let mut cov11 = 0.0;
+    let mut chisq = 0.0;
+    unsafe { gsl_fit_wlinear(x.as_ptr(), 1, w.as_ptr(), 1, y.as_ptr(), 1, n,
+        &mut c0, &mut c1, &mut cov00, &mut cov01, &mut cov11, &mut chisq) };
+    (c0, c1, cov00.sqrt(), cov11.sqrt(), chisq)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -259,4 +328,17 @@ mod tests {
         let cell = [2.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0];
         assert!(volume(3, &cell) == 8.0);
     }
+    
+    #[test]
+    fn slice_max() {
+        let array = [0.2, 0.5, -0.2, 10.0, 2.0];
+        assert!(max_float_slice(&array) == 10.0);
+    }
+    
+    #[test]
+    fn slice_min() {
+        let array = [0.2, 0.5, -0.2, 10.0, 2.0];
+        assert!(min_float_slice(&array) == -0.2);
+    }
+
 }

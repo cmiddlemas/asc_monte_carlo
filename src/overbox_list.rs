@@ -338,4 +338,8 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
     fn first_particle(&self) -> &P {
         &self.p_vec[0]
     }
+
+    fn particle_slice(&self) -> &[P] {
+        &self.p_vec
+    }
 }

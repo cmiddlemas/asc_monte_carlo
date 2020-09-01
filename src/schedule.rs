@@ -10,6 +10,28 @@ use crate::OPT;
 use crate::particle::Particle;
 use serde::{Serialize, Deserialize};
 
+pub fn write_data_file(contents: &str, suffix: &str) {
+    if OPT.verbosity >= 1 {
+        if let Some(logroot) = &OPT.logfiles {
+            let mut logpath = logroot.clone();
+            logpath.set_file_name(
+                format!("{}_{}.dat",
+                    logroot.file_name().expect("Must give valid root filename for logfile")
+                        .to_str().expect("Valid utf-8"),
+                    suffix
+                ));
+            // Referenced rust docs for std
+            let mut logfile = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(logpath)
+                .expect("Must be able to write to data file");
+            write!(&mut logfile, "{}", contents)
+                .expect("Failed write to data file");
+        }
+    }
+}
+
 pub fn write_sweep_log(logline: &str) {
     if let Some(logroot) = &OPT.logfiles {
         let mut logpath = logroot.clone();
@@ -46,6 +68,7 @@ pub struct Schedule<P> {
     pub running_obs: Vec<f64>,
     pub beta: f64,
     pub phi: f64,
+    pub avg_gap: f64,
     _phantom: PhantomData<P>,
 }
 
@@ -75,6 +98,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
             beta: 1.0, // TODO: decide if this should be 
                        // accessible to user
             phi: 0.0,
+            avg_gap: 0.0,
             _phantom: PhantomData,
         };
         
@@ -133,6 +157,10 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
         // https://github.com/serde-rs/serde
         let mut schedule: Schedule<P> = serde_json::from_str(&buf).unwrap();
         schedule.n_sweeps = OPT.sweeps;
+        schedule.n_moves = OPT.moves;
+        schedule.pressure = OPT.pressure;
+        schedule.p_cell_move = OPT.pcell;
+
         // Need to reset some counters, since some runs
         // leave the counters unreset at the end so that
         // things like accept ratios can be computed after
@@ -148,6 +176,10 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
     fn should_terminate(&self) -> bool {
         if let Some(threshold) = OPT.max_phi {
             if self.phi >= threshold {
+                return true;
+            }
+        } else if let Some(threshold) = OPT.gap_threshold {
+            if self.avg_gap/self.phi <= threshold {
                 return true;
             }
         }

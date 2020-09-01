@@ -48,6 +48,7 @@ dependencies = [
  "chrono",
  "itertools",
  "lazy_static",
+ "libc",
  "nalgebra",
  "rand 0.7.3",
  "rand_distr",

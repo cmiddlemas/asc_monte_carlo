@@ -9,6 +9,7 @@ use std::path::Path;
 use crate::OPT;
 use crate::schedule::Schedule;
 use crate::particle::Particle;
+use crate::common_util::{min_float_slice, max_float_slice, linear_fit};
 use std::fs::{OpenOptions, rename};
 use rand_distr::{Uniform, Distribution};
 
@@ -74,6 +75,11 @@ where
 
     // Check particle over overlaps in Asc, return number of overlaps
     fn check_particle(&self, fixed: &P) -> usize;
+
+    // Give nearest particle gap in terms of delta_phi
+    // Need to give the unique index of the particle as well for
+    // exclusion purposes
+    fn particle_gap(&self, exclude_idx: usize, particle: &P) -> f64 { unimplemented!() }
 
     // Return cell volume
     fn cell_volume(&self) -> f64;
@@ -158,9 +164,83 @@ where
     // Return number of particles in Asc
     fn n_particles(&self) -> usize;
 
+    // Return phi
+    fn packing_fraction(&self) -> f64 {
+        let sum_particle_vol: f64 = self.particle_slice().iter()
+                                   .map(|p| p.vol())
+                                   .sum();
+        sum_particle_vol/self.cell_volume()
+    }
+
     // Return a slice that gives the unit cell
     fn unit_cell(&self) -> &[f64];
 
     // Return a reference to the first particle stored in Asc
     fn first_particle(&self) -> &P;
+
+    // Return a slice of particles
+    fn particle_slice(&self) -> &[P] { unimplemented!() }
+
+    // Returns nearest-neighbor gap distribution function
+    // in form [delta phi, P(delta phi), unc P(delta phi)]
+    // Working on this using the ASC code Duyu gave me
+    // Also returns average nn gap in first variable
+    fn nn_gap_distribution(&self) -> (f64, Vec<[f64; 3]>) {
+        let delta_phi: Vec<f64> = self.particle_slice().iter().enumerate()
+                       .map(|(i, p)| self.particle_gap(i, p))
+                       .collect();
+        
+        let n_obs = delta_phi.len() as f64;
+        // https://stackoverflow.com/questions/56872714/iter-sum-stops-working-as-soon-as-i-add-further-operation
+        let avg_nn_gap: f64 = delta_phi.iter().sum::<f64>()/n_obs;
+        let max_delta_phi = max_float_slice(&delta_phi);
+        let min_delta_phi = min_float_slice(&delta_phi);
+        let delta_phi_step = (max_delta_phi-min_delta_phi)/(OPT.n_bins_gap as f64);
+        
+        let midpoint: Vec<f64> = (0..OPT.n_bins_gap).map(|x|
+                                                          min_delta_phi
+                                                            + (x as f64)*delta_phi_step 
+                                                            + delta_phi_step/2.0)
+                                                    .collect();
+        let mut histogram = vec![0.0; OPT.n_bins_gap];
+        
+        for obs in delta_phi {
+            // Safely cast float to int
+            // https://github.com/rust-lang/rust/issues/10184
+            let proposed_bin_f64 = (obs - min_delta_phi)/delta_phi_step;
+            eprintln!("{} {}", min_delta_phi, max_delta_phi);
+            assert!(proposed_bin_f64.is_finite());
+            assert!(proposed_bin_f64 >= 0.0 && proposed_bin_f64 <= 10000000.0);
+            let proposed_bin = proposed_bin_f64 as usize;
+            if proposed_bin < OPT.n_bins_gap {
+                histogram[proposed_bin] += 1.0;
+            }
+        }
+
+        let distribution = midpoint.iter().zip(histogram.iter())
+           .map(|(x, y)| [*x, (*y)/n_obs, (*y).sqrt()/n_obs])
+           .collect();
+        
+        (avg_nn_gap, distribution)
+    }
+
+    // Returns the instantaneous pressure, its uncertainty, chisq,
+    // and R^2 of fit
+    fn instantaneous_pressure(&self) -> (f64, f64, f64) {
+        let (_, gap_distr) = self.nn_gap_distribution();
+        // Need to fit ln P1(delta phi) as indicated in
+        // Eppenga and Frenkel, Mol. Phys. 52 (1984)
+        // and Duyu's paper on bulk equilibrium and MRJ polyhedra
+        let ln_gap: Vec<[f64; 3]> = gap_distr.iter().map(|x| [x[0], x[1].ln(), x[2]/x[1]])
+                                     .collect();
+        let trimmed_data = &ln_gap[0..OPT.n_bins_fit];
+        let (_, b, _, unc_b, chisq) = linear_fit(trimmed_data);
+        
+        let phi = self.packing_fraction();
+        let alpha = -b;
+        let unc_alpha = unc_b;
+        let p = 1.0 + phi*alpha/2.0;
+        let unc_p = phi*unc_alpha/2.0;
+        (p, unc_p, chisq)
+    }
 }

@@ -41,6 +41,15 @@ use cell_list::CellList;
 /// Can configure number of threads to run on with RAYON_NUM_THREADS
 /// environment variable.
 struct Opt {
+    // Verbosity
+    // Currently affects whether extra
+    // longer data files, such as the nn_gap distribution
+    // are written out in addition to the main logfile if logfiles
+    // are written
+    // From https://github.com/TeXitoi/structopt
+    #[structopt(short, long, parse(from_occurrences))]
+    verbosity: u8,
+
     // If specified, stop after reaching this phi
     // over one sweep
     #[structopt(long)]
@@ -214,11 +223,10 @@ struct Opt {
 
     /// Optional file holding initial Schedule in json format.
     /// Invalidates the following options:
-    /// --moves, --pressure, --pcell, --isotropic, --shear, --axial,
-    /// --dtrans, --drot.
-    /// Still uses the following option, despite reading a value
+    /// --isotropic, --shear, --axial, --dtrans, --drot.
+    /// Still uses the following options, despite reading a value
     /// for that parameter in json file:
-    /// --sweeps.
+    /// --sweeps, --moves, --pressure, --pcell.
     #[structopt(long)]
     schedulefile: Option<PathBuf>,
 
@@ -250,6 +258,23 @@ struct Opt {
     /// is concurrently specified
     #[structopt(long)]
     no_rayon: bool,
+
+    /// Give the number of bins to use in measuring
+    /// gap distribution and instantaneous pressure
+    #[structopt(long, default_value = "20")]
+    n_bins_gap: usize,
+
+    /// Give the number of bins to use when fitting
+    /// instantaneous pressure
+    #[structopt(long, default_value = "5")]
+    n_bins_fit: usize,
+
+    /// Give the threshold to end simulation
+    /// in terms of < delta phi >/phi required
+    /// to bring a pair of particles into contact
+    #[structopt(long)]
+    gap_threshold: Option<f64>,
+
 }
 
 // Globals -------------------------------------------------------------------

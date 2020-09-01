@@ -55,7 +55,11 @@ fn max_subdiv(dim: usize, unit_cell: &[f64], max_radius: f64) -> usize {
             let max_base = base0.max(base1);
             let min_width = vol/max_base;
             // https://stackoverflow.com/questions/37506672/convert-float-to-integer-in-rust
-            (min_width/max_diam).floor() as usize
+            // Safely convert between float and usize
+            let answer_f64 = (min_width/max_diam).floor();
+            assert!(answer_f64.is_finite());
+            assert!(answer_f64 >= 0.0 && answer_f64 <= 100000000.0);
+            answer_f64 as usize
         }
         3 => {
             let u = Matrix3::from_column_slice(unit_cell);
@@ -64,7 +68,12 @@ fn max_subdiv(dim: usize, unit_cell: &[f64], max_radius: f64) -> usize {
             let base2 = u.column(2).cross(&u.column(0)).norm();
             let max_base = base0.max(base1.max(base2));
             let min_width = vol/max_base;
-            (min_width/max_diam).floor() as usize
+            // Safely convert between float and usize
+            let answer_f64 = (min_width/max_diam).floor();
+            assert!(answer_f64.is_finite());
+            assert!(answer_f64 >= 0.0 && answer_f64 <= 100000000.0);
+            answer_f64 as usize
+
         }
         _ => unimplemented!(),
     }
@@ -84,14 +93,23 @@ fn assign_cell<P: Particle>
     match dim {
         2 => {
             let lat_c = p.lat_coord();
-            let mut lat_idx = lat_c.iter().map(|x| (x*ls_f64).floor() as usize);
+            // Safely cast between float and usize
+            let mut lat_idx = lat_c.iter().map(|x| 
+                { let ans = (x*ls_f64).floor();
+                assert!(ans.is_finite());
+                assert!(ans >= 0.0 && ans <= 100000000.0);
+                ans as usize });
             let idx1 = lat_idx.next().unwrap();
             let idx2 = lat_idx.next().unwrap();
             idx1 + lin_subdiv*idx2
         }
         3 => {
             let lat_c = p.lat_coord();
-            let mut lat_idx = lat_c.iter().map(|x| (x*ls_f64).floor() as usize);
+            let mut lat_idx = lat_c.iter().map(|x| 
+                { let ans = (x*ls_f64).floor();
+                assert!(ans.is_finite());
+                assert!(ans >= 0.0 && ans <= 100000000.0);
+                ans as usize });
             let idx1 = lat_idx.next().unwrap();
             let idx2 = lat_idx.next().unwrap();
             let idx3 = lat_idx.next().unwrap();
@@ -168,7 +186,6 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> CellList<P> {
             }
         }
     }
-
 }
 
 // Returns a list of the the cells surrounding the given cell
@@ -348,6 +365,30 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
         
         n_overlaps
     }
+    
+    fn particle_gap(&self, exclude_idx: usize, particle: &P) -> f64 {
+        let current_cell = assign_cell(self.dim, self.lin_subdiv, particle);
+        let mut smallest_gap: f64 = f64::INFINITY;
+        let phi = self.packing_fraction();
+
+        for (cell, offset) in cells_around(current_cell,
+                                           self.dim,
+                                           self.lin_subdiv,
+                                           &self.unit_cell) 
+        {
+            for p_idx in &self.c_assoc_list[cell] {
+                if *p_idx != exclude_idx { // don't compute gap for particle with itself
+                    let scale = particle.overlap_scale(&self.p_list[*p_idx], &offset);
+                    let gap = (phi/scale) - phi;
+                    if gap < smallest_gap {
+                        smallest_gap = gap;
+                    }
+                }
+            }
+        }
+        
+        smallest_gap
+    }
 
     // Return cell volume
     fn cell_volume(&self) -> f64 { volume(self.dim, &self.unit_cell) }
@@ -438,6 +479,9 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
         &self.p_list[0]
     }
 
+    fn particle_slice(&self) -> &[P] {
+        &self.p_list
+    }
 }
 
 

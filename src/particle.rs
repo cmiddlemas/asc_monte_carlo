@@ -13,6 +13,9 @@ where Self: Clone + Send + Sync + Debug + Display + std::marker::Sized {
     // offset is a vector to add to translational coord of 
     // other
     fn check_overlap(&self, other: &Self, offset: &[f64]) -> bool;
+
+    // Gives the scaling factor V'/V needed to bring particles into contact
+    fn overlap_scale(&self, other: &Self, offset: &[f64]) -> f64 { unimplemented!() }
     
     fn copy_shape_random_coord(&self,
                                cell: &[f64],
@@ -63,6 +66,9 @@ where Self: Clone + Send + Sync + Debug + Display + std::marker::Sized {
 
     // Upper bound on dimension of particle
     fn hint_upper(&self) -> f64;
+
+    // Returns the particle volume
+    fn vol(&self) -> f64 { unimplemented!() }
 
     // Returns relative translational coordinates
     // Type signature is a bit of a hack, will waste space

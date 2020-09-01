@@ -5,7 +5,7 @@ use std::fmt::{Display, Formatter};
 use std::fmt;
 use std::convert::TryInto;
 use crate::asc::{Asc, save_asc_from_opt};
-use crate::schedule::{Schedule, write_sweep_log};
+use crate::schedule::{Schedule, write_sweep_log, write_data_file};
 use crate::PI;
 use crate::common_util::{apply_pbc, relative_to_global3, global_to_relative3};
 
@@ -54,6 +54,17 @@ impl Particle for Sphere {
             <= (self.radius + other.radius).powi(2)
     }
     
+    fn overlap_scale(&self, other: &Self, offset: &[f64]) -> f64 {
+        let image_x = other.global_pos[0] + offset[0];
+        let image_y = other.global_pos[1] + offset[1];
+        let image_z = other.global_pos[2] + offset[2];
+        let displacement = ((self.global_pos[0] - image_x).powi(2) 
+            + (self.global_pos[1] - image_y).powi(2)
+            + (self.global_pos[2] - image_z).powi(2)).sqrt();
+        let extent = self.radius + other.radius;
+        (extent/displacement).powi(3) 
+    }
+
     fn copy_shape_random_coord(&self,
                                cell: &[f64],
                                rng: &mut Xoshiro256StarStar
@@ -99,14 +110,24 @@ impl Particle for Sphere {
 
     fn sample_obs_sweep<C: Asc<Self>>(schedule: &mut Schedule<Self>, config: &C) {
         let vol = schedule.running_obs[1]/schedule.running_obs[0];
-        schedule.running_obs = vec![0.0,0.0];
-        println!("Cell volume over sweep: {}", vol);
-        let phi = (config.n_particles() as f64)
-            *4.0*PI*config.first_particle().radius.powi(3)
-            /(3.0*vol);
+        schedule.running_obs = Self::init_obs();
+        println!("Cell volume averaged over sweep: {}", vol);
+        let phi = config.packing_fraction();
         schedule.phi = phi;
-        println!("Phi over sweep: {}", phi);
-        let logline = format!("{} {} {}", schedule.current_sweep, vol, phi);
+        println!("Phi at end of sweep: {}", phi);
+        let (avg_nn_gap, gap_distr) = config.nn_gap_distribution();
+        schedule.avg_gap = avg_nn_gap;
+        let gap_string: String = gap_distr.iter()
+                                          .map(|x| format!("{} {} {}\n", x[0], x[1], x[2]))
+                                          .fold(String::new(), |acc, x| acc + &x);
+        let fname = format!("nn_gap_{}", schedule.current_sweep);
+        write_data_file(&gap_string, &fname);
+        let (pressure, unc_pressure, chisq) = config.instantaneous_pressure();
+        let logline = format!("{} {} {} {} {}", schedule.current_sweep,
+                                                vol,
+                                                phi,
+                                                pressure,
+                                                avg_nn_gap);
         write_sweep_log(&logline);
         save_asc_from_opt(config, &format!("sweep_{}", schedule.current_sweep));
     }
@@ -147,6 +168,10 @@ impl Particle for Sphere {
 
     fn hint_upper(&self) -> f64 {
         self.radius
+    }
+
+    fn vol(&self) -> f64 {
+        4.0*PI*self.radius.powi(3)/3.0
     }
 
     fn lat_coord(&self) -> Vec<f64> {
