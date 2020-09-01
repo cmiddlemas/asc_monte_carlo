@@ -18,3 +18,5 @@ This may not be necessary anymore with a new enough rust compiler, leaving comme
 here thought to remind
 1 September 2020
 IMPORTANT: Fix bug where nn can be wrong if no particle found in cell!!!
+IMPORTANT: Fix bug where json can't represent inf:
+    https://github.com/serde-rs/json/issues/202
