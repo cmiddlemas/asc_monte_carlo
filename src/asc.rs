@@ -208,7 +208,7 @@ where
             // Safely cast float to int
             // https://github.com/rust-lang/rust/issues/10184
             let proposed_bin_f64 = (obs - min_delta_phi)/delta_phi_step;
-            eprintln!("{} {}", min_delta_phi, max_delta_phi);
+            // eprintln!("{} {}", min_delta_phi, max_delta_phi);
             assert!(proposed_bin_f64.is_finite());
             assert!(proposed_bin_f64 >= 0.0 && proposed_bin_f64 <= 10000000.0);
             let proposed_bin = proposed_bin_f64 as usize;

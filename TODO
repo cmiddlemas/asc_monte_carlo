@@ -16,3 +16,5 @@ Add in dtrans cap and bounded perturbation code
 Make sure all casts are non-UB, meaning add checks when going from float -> int
 This may not be necessary anymore with a new enough rust compiler, leaving comment
 here thought to remind
+1 September 2020
+IMPORTANT: Fix bug where nn can be wrong if no particle found in cell!!!
