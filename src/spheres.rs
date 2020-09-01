@@ -115,7 +115,7 @@ impl Particle for Sphere {
         let phi = config.packing_fraction();
         schedule.phi = phi;
         println!("Phi at end of sweep: {}", phi);
-        let (avg_nn_gap, gap_distr) = config.nn_gap_distribution();
+        let (avg_nn_gap, min_nn_gap, max_nn_gap, gap_distr) = config.nn_gap_distribution();
         schedule.avg_gap = avg_nn_gap;
         let gap_string: String = gap_distr.iter()
                                           .map(|x| format!("{} {} {}\n", x[0], x[1], x[2]))
@@ -123,11 +123,14 @@ impl Particle for Sphere {
         let fname = format!("nn_gap_{}", schedule.current_sweep);
         write_data_file(&gap_string, &fname);
         let (pressure, unc_pressure, chisq) = config.instantaneous_pressure();
-        let logline = format!("{} {} {} {} {}", schedule.current_sweep,
+        let logline = format!("{} {} {} {} {} {} {} {}", schedule.current_sweep,
                                                 vol,
                                                 phi,
                                                 pressure,
-                                                avg_nn_gap);
+                                                unc_pressure,
+                                                avg_nn_gap,
+                                                min_nn_gap,
+                                                max_nn_gap);
         write_sweep_log(&logline);
         save_asc_from_opt(config, &format!("sweep_{}", schedule.current_sweep));
     }

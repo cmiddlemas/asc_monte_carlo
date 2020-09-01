@@ -184,8 +184,9 @@ where
     // Returns nearest-neighbor gap distribution function
     // in form [delta phi, P(delta phi), unc P(delta phi)]
     // Working on this using the ASC code Duyu gave me
-    // Also returns average nn gap in first variable
-    fn nn_gap_distribution(&self) -> (f64, Vec<[f64; 3]>) {
+    // Also returns average nn gap in first variable, smallest
+    // gap in second, and largest in third
+    fn nn_gap_distribution(&self) -> (f64, f64, f64, Vec<[f64; 3]>) {
         let delta_phi: Vec<f64> = self.particle_slice().iter().enumerate()
                        .map(|(i, p)| self.particle_gap(i, p))
                        .collect();
@@ -221,13 +222,13 @@ where
            .map(|(x, y)| [*x, (*y)/n_obs, (*y).sqrt()/n_obs])
            .collect();
         
-        (avg_nn_gap, distribution)
+        (avg_nn_gap, min_delta_phi, max_delta_phi, distribution)
     }
 
     // Returns the instantaneous pressure, its uncertainty, chisq,
     // and R^2 of fit
     fn instantaneous_pressure(&self) -> (f64, f64, f64) {
-        let (_, gap_distr) = self.nn_gap_distribution();
+        let (_, _, _, gap_distr) = self.nn_gap_distribution();
         // Need to fit ln P1(delta phi) as indicated in
         // Eppenga and Frenkel, Mol. Phys. 52 (1984)
         // and Duyu's paper on bulk equilibrium and MRJ polyhedra
