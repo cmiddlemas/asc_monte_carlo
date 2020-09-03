@@ -123,11 +123,15 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
         schedule
     }
 
+    // Using serde_yaml because json can't represent inf
+    // properly
+    // https://github.com/serde-rs/json/issues/202
+    // https://stackoverflow.com/questions/1423081/json-left-out-infinity-and-nan-json-status-in-ecmascript
     pub fn save_in_log(&self) {
         if let Some(logroot) = &OPT.logfiles {
             let mut logpath = logroot.clone();
             logpath.set_file_name(
-                format!("{}_schedule.json",
+                format!("{}_schedule.yaml",
                     logroot.file_name().expect("Must give valid root filename for logfile")
                         .to_str().expect("Valid utf-8")
                 ));
@@ -138,13 +142,13 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
                 .open(logpath)
                 .expect("Must be able to write to logfile");
             // https://github.com/serde-rs/serde
-            let serial = serde_json::to_string(self).unwrap();
+            let serial = serde_yaml::to_string(self).unwrap();
             write!(&mut logfile, "{}", serial)
                 .expect("Failed write to logfile");
         }
     }
 
-    // Sets a schedule using a json schedule. Overwrites
+    // Sets a schedule using a yaml schedule. Overwrites
     // only one field using the input from the command line, which is n_sweeps,
     // since that just determines the length of the simulation,
     // and has no physical effect
@@ -155,7 +159,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
         let mut buf = String::new();
         infile.read_to_string(&mut buf).expect("Must be able to read Schedule file");
         // https://github.com/serde-rs/serde
-        let mut schedule: Schedule<P> = serde_json::from_str(&buf).unwrap();
+        let mut schedule: Schedule<P> = serde_yaml::from_str(&buf).unwrap();
         schedule.n_sweeps = OPT.sweeps;
         schedule.n_moves = OPT.moves;
         schedule.pressure = OPT.pressure;
