@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""
+asc_to_donev
+
+Usage: asc_to_donev_monodisperse [infile] > [outfile]
+
+Warning: Currently assumes asc file radius is identically
+1 for all particles and that dimension is 3
+
+Options:
+    -h, --help -> Show this message
+"""
+
+import sys
+import numpy as np
+
+if __name__ == "__main__":
+    if "-h" in sys.argv or "--help" in sys.argv:
+        print(__doc__)
+        sys.exit(0)
+
+    infile = open(sys.argv[1])
+
+    # Read type of file
+    type_line = infile.readline()
+    if type_line !=  "3 1 Sphere\n":
+        print("Error: can only handle monodisperse 3d spheres!", file=sys.stderr)
+        sys.exit(-1)
+
+
+
+    
+    # Read unit cell
+    unit_line = infile.readline()
+    unit_cell = [float(token) for token in unit_line.split()]
+    u0 = np.array(unit_cell[0:3])
+    u1 = np.array(unit_cell[3:6])
+    u2 = np.array(unit_cell[6:9])
+
+    # Read particle positions
+    n_p = 0
+    p_list = []
+    for line in infile:
+        n_p += 1
+        lat_coord = np.array([float(token) for token in line.split()])
+        glob_coord = lat_coord[0]*u0 + lat_coord[1]*u1 + lat_coord[2]*u2
+        p_list += ["{} {} {}".format(glob_coord[0], glob_coord[1], glob_coord[2])]
+
+    # Print out donev format
+    print("3 HS mono")
+    print("{} 1".format(n_p))
+    print("{}".format(n_p))
+    print("2")
+    print(unit_line[0:-1])
+    print("T T T")
+    for p in p_list:
+        print(p)
