@@ -54,7 +54,7 @@ fn is_zero(v: &[f64]) -> bool {
 // and each row is interpreted as the
 // coordinates vx vy vz ... of a lattice
 // vector
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OverboxList<P> {
     pub dim: usize, // Dimension of configuration
     pub overbox: usize, // # of overboxes, needed for small unit cell
@@ -315,7 +315,9 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
         }
     }
 
-    fn apply_random_strain(mut self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> Option<(Self, f64)> {
+    fn apply_random_strain(mut self, schedule: &Schedule<P, Self>, rng: &mut Xoshiro256StarStar) 
+        -> Option<(Self, f64)>
+    {
     // Choose random strain
         let (trace_strain, new_cell) = gen_random_strain(self.dim, &self.cell, schedule, rng);
         // Apply strain to cell
@@ -339,7 +341,7 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
     }   
 
     fn try_particle_move(&mut self,
-                             schedule: &mut Schedule<P>,
+                             schedule: &mut Schedule<P, Self>,
                              rng: &mut Xoshiro256StarStar
     ) -> bool
     {

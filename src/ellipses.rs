@@ -209,11 +209,11 @@ impl Particle for Ellipse {
         self.global_pos = relative_to_global2(new_cell, &self.rel_pos);
     }
 
-    fn init_obs() -> Vec<f64> {
+    fn init_obs<C: Asc<Self>>(_config: &C) -> Vec<f64> {
         vec![0.0, 0.0] // [samples, sum of volume]
     }
 
-    fn sample_obs_sweep<C: Asc<Self>>(schedule: &mut Schedule<Self>, config: &C) {
+    fn sample_obs_sweep<C: Asc<Self>>(schedule: &mut Schedule<Self, C>, config: &C) {
         let vol = schedule.running_obs[1]/schedule.running_obs[0];
         schedule.running_obs = vec![0.0,0.0];
         println!("Cell volume over sweep: {}", vol);
@@ -227,7 +227,7 @@ impl Particle for Ellipse {
     }
 
     fn sample_obs_failed_move<C: Asc<Self>>(
-        schedule: &mut Schedule<Self>,
+        schedule: &mut Schedule<Self, C>,
         config: &C
     )
     {
@@ -236,7 +236,7 @@ impl Particle for Ellipse {
     }
 
     fn sample_obs_accepted_pmove<C: Asc<Self>>(
-        schedule: &mut Schedule<Self>,
+        schedule: &mut Schedule<Self, C>,
         config: &C,
         _changed_idx: usize,
         _old_p: &Self
@@ -247,7 +247,7 @@ impl Particle for Ellipse {
     }
     
     fn sample_obs_accepted_cmove<C: Asc<Self>>(
-        schedule: &mut Schedule<Self>,
+        schedule: &mut Schedule<Self, C>,
         config: &C,
         _old_c: &[f64]
     )

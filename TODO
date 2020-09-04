@@ -21,3 +21,6 @@ here thought to remind
 (FIXED 3 September 2020) Fix bug where json can't represent inf:
     https://github.com/serde-rs/json/issues/202
     (NOTE 3 September 2020) Still need to convert testing scripts
+4 September 2020
+IMPORTANT: There is suspected bug in averaging min nn gap or point sampling,
+based on data in mrj_sphere_two_stage_slower

@@ -290,7 +290,7 @@ lazy_static! {
 
 fn make_and_run_schedule<C, P: Particle + Clone + Debug + Display + Send + Sync>
         (mut config: C, rng: &mut Xoshiro256StarStar)
-    where C: Asc<P>
+    where C: Asc<P> + Debug
 {
     let validity = config.is_valid();
     println!("Found initial configuration is {}", validity);
@@ -305,9 +305,9 @@ fn make_and_run_schedule<C, P: Particle + Clone + Debug + Display + Send + Sync>
     save_asc_from_opt(&config, "initial");
     // https://doc.rust-lang.org/std/option/enum.Option.html
     let mut schedule = if let Some(path) = &OPT.schedulefile {
-        Schedule::from_file(path)
+        Schedule::from_file(path, &config)
     } else {
-        Schedule::make(config.first_particle())
+        Schedule::make(config.first_particle(), &config)
     };
     println!("Running schedule:");
     println!("{:?}", schedule);

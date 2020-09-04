@@ -91,10 +91,10 @@ where
     // acceleration structures if necessary
     // Returns an option with (Asc object, trace_strain), if None, it means that the
     // strain attempt failed to produce a valid object, and the given object is consumed.
-    fn apply_random_strain(self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> Option<(Self, f64)>;
+    fn apply_random_strain(self, schedule: &Schedule<P, Self>, rng: &mut Xoshiro256StarStar) -> Option<(Self, f64)>;
 
     // Try to change the cell by straining
-    fn try_cell_move(&mut self, schedule: &mut Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool {
+    fn try_cell_move(&mut self, schedule: &mut Schedule<P, Self>, rng: &mut Xoshiro256StarStar) -> bool {
         let new_asc = self.clone();
 
         // This implementation switched because cannot drop through an &mut
@@ -159,7 +159,7 @@ where
     }
 
     // Try to move a particle
-    fn try_particle_move(&mut self, schedule: &mut Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool;
+    fn try_particle_move(&mut self, schedule: &mut Schedule<P, Self>, rng: &mut Xoshiro256StarStar) -> bool;
 
     // Return number of particles in Asc
     fn n_particles(&self) -> usize;

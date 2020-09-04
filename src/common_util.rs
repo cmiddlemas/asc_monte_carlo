@@ -83,9 +83,9 @@ pub fn volume(dim: usize, unit_cell: &[f64]) -> f64 {
 }
 
 // Returns (Tr(strain), new_cell)
-pub fn gen_random_strain<P>(dim: usize,
+pub fn gen_random_strain<P,C>(dim: usize,
                          old_cell: &[f64],
-                         schedule: &Schedule<P>,
+                         schedule: &Schedule<P,C>,
                          rng: &mut Xoshiro256StarStar)
 -> (f64, Vec<f64>) 
 {

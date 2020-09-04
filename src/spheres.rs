@@ -104,13 +104,15 @@ impl Particle for Sphere {
         self.global_pos = relative_to_global3(new_cell, &self.rel_pos);
     }
 
-    fn init_obs() -> Vec<f64> {
-        vec![0.0, 0.0] // [samples, sum of volume]
+    fn init_obs<C: Asc<Self>>(config: &C) -> Vec<f64> {
+        let (_, min_nn_gap, _, _,) = config.nn_gap_distribution();
+        vec![0.0, 0.0, min_nn_gap, 0.0] // [samples, sum of volume, current min_nn_gap, sum of min_nn_gap]
     }
 
-    fn sample_obs_sweep<C: Asc<Self>>(schedule: &mut Schedule<Self>, config: &C) {
+    fn sample_obs_sweep<C: Asc<Self>>(schedule: &mut Schedule<Self, C>, config: &C) {
         let vol = schedule.running_obs[1]/schedule.running_obs[0];
-        schedule.running_obs = Self::init_obs();
+        let avg_min_gap = schedule.running_obs[3]/schedule.running_obs[0];
+        schedule.running_obs = Self::init_obs(config);
         println!("Cell volume averaged over sweep: {}", vol);
         let phi = config.packing_fraction();
         schedule.phi = phi;
@@ -123,11 +125,12 @@ impl Particle for Sphere {
         let fname = format!("nn_gap_{}", schedule.current_sweep);
         write_data_file(&gap_string, &fname);
         let (pressure, unc_pressure, chisq) = config.instantaneous_pressure();
-        let logline = format!("{} {} {} {} {} {} {} {}", schedule.current_sweep,
+        let logline = format!("{} {} {} {} {} {} {} {} {}", schedule.current_sweep,
                                                 vol,
                                                 phi,
                                                 pressure,
                                                 unc_pressure,
+                                                avg_min_gap,
                                                 avg_nn_gap,
                                                 min_nn_gap,
                                                 max_nn_gap);
@@ -136,33 +139,45 @@ impl Particle for Sphere {
     }
 
     fn sample_obs_failed_move<C: Asc<Self>>(
-        schedule: &mut Schedule<Self>,
+        schedule: &mut Schedule<Self, C>,
         config: &C
     )
     {
         schedule.running_obs[0] += 1.0;
         schedule.running_obs[1] += config.cell_volume();
+        // The new min_nn_gap is the same as the old
+        schedule.running_obs[3] += schedule.running_obs[2];
     }
 
     fn sample_obs_accepted_pmove<C: Asc<Self>>(
-        schedule: &mut Schedule<Self>,
+        schedule: &mut Schedule<Self, C>,
         config: &C,
-        _changed_idx: usize,
+        changed_idx: usize,
         _old_p: &Self
     )
     {
         schedule.running_obs[0] += 1.0;
         schedule.running_obs[1] += config.cell_volume();
+        let possible_gap = config.particle_gap(changed_idx, &config.particle_slice()[changed_idx]);
+        if possible_gap < schedule.running_obs[2] {
+            schedule.running_obs[2] = possible_gap;
+        }
+        schedule.running_obs[3] += schedule.running_obs[2];
     }
     
     fn sample_obs_accepted_cmove<C: Asc<Self>>(
-        schedule: &mut Schedule<Self>,
+        schedule: &mut Schedule<Self, C>,
         config: &C,
         _old_c: &[f64]
     )
     {
         schedule.running_obs[0] += 1.0;
         schedule.running_obs[1] += config.cell_volume();
+        let (_, possible_gap, _, _) = config.nn_gap_distribution();
+        if possible_gap < schedule.running_obs[2] {
+            schedule.running_obs[2] = possible_gap;
+        }
+        schedule.running_obs[3] += schedule.running_obs[2];
     }
 
     fn hint_lower(&self) -> f64 {

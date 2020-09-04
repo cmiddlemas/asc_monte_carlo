@@ -53,7 +53,7 @@ pub fn write_sweep_log(logline: &str) {
 
 // https://github.com/serde-rs/serde
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Schedule<P> {
+pub struct Schedule<P,C> {
     pub current_sweep: usize,
     pub particle_accepts: Vec<usize>,
     pub particle_tries: Vec<usize>,
@@ -69,12 +69,13 @@ pub struct Schedule<P> {
     pub beta: f64,
     pub phi: f64,
     pub avg_gap: f64,
-    _phantom: PhantomData<P>,
+    _phantom1: PhantomData<P>,
+    _phantom2: PhantomData<C>,
 }
 
 // https://stackoverflow.com/questions/42613974/why-cant-i-add-a-blanket-impl-on-a-trait-with-a-type-parameter
-impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
-    pub fn make(particle: &P) -> Schedule<P> {
+impl<P: Particle + Debug + Display + Send + Sync + Clone, C: Asc<P>> Schedule<P,C> {
+    pub fn make(particle: &P, config: &C) -> Schedule<P,C> {
         // Decide on particle move parameters
         let mut p_param = Vec::new();
         let size_hint = particle.hint_lower();
@@ -94,12 +95,13 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
             p_cell_move: OPT.pcell,
             cell_param: vec![OPT.isotropic, OPT.shear, OPT.axial],
             particle_param: p_param,
-            running_obs: P::init_obs(),
+            running_obs: P::init_obs(config),
             beta: 1.0, // TODO: decide if this should be 
                        // accessible to user
             phi: 0.0,
             avg_gap: 0.0,
-            _phantom: PhantomData,
+            _phantom1: PhantomData,
+            _phantom2: PhantomData,
         };
         
         // Clamp strain parameters if needed
@@ -152,14 +154,14 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
     // only one field using the input from the command line, which is n_sweeps,
     // since that just determines the length of the simulation,
     // and has no physical effect
-    pub fn from_file(path: &PathBuf) -> Schedule<P> {
+    pub fn from_file(path: &PathBuf, config: &C) -> Schedule<P,C> {
         // Made extensive use of the rust docs for various
         // std components when writing this function
         let mut infile = File::open(path).expect("Schedule file must be valid");
         let mut buf = String::new();
         infile.read_to_string(&mut buf).expect("Must be able to read Schedule file");
         // https://github.com/serde-rs/serde
-        let mut schedule: Schedule<P> = serde_yaml::from_str(&buf).unwrap();
+        let mut schedule: Schedule<P,C> = serde_yaml::from_str(&buf).unwrap();
         schedule.n_sweeps = OPT.sweeps;
         schedule.n_moves = OPT.moves;
         schedule.pressure = OPT.pressure;
@@ -173,7 +175,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
         schedule.particle_tries = vec![0, 0];
         schedule.cell_accepts = 0;
         schedule.cell_tries = 0;
-        schedule.running_obs = P::init_obs();
+        schedule.running_obs = P::init_obs(config);
         schedule
     }
 
@@ -190,7 +192,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Schedule<P> {
         false
     }
 
-    pub fn run<C: Asc<P>>(&mut self,
+    pub fn run(&mut self,
                config: &mut C,
                rng: &mut Xoshiro256StarStar)
     {

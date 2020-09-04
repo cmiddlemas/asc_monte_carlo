@@ -36,27 +36,27 @@ where Self: Clone + Send + Sync + Debug + Display + std::marker::Sized {
 
     fn apply_strain(&mut self, new_cell: &[f64]);
    
-    fn init_obs() -> Vec<f64>;
+    fn init_obs<C: Asc<Self>>(config: &C) -> Vec<f64>;
 
     fn sample_obs_sweep<C: Asc<Self>>(
-        schedule: &mut Schedule<Self>,
+        schedule: &mut Schedule<Self, C>,
         config: &C
     );
     
     fn sample_obs_failed_move<C: Asc<Self>>(
-        schedule: &mut Schedule<Self>,
+        schedule: &mut Schedule<Self, C>,
         config: &C
     );
 
     fn sample_obs_accepted_pmove<C: Asc<Self>>(
-        schedule: &mut Schedule<Self>,
+        schedule: &mut Schedule<Self, C>,
         config: &C,
         changed_idx: usize,
         old_p: &Self
     );
 
     fn sample_obs_accepted_cmove<C: Asc<Self>>(
-        schedule: &mut Schedule<Self>,
+        schedule: &mut Schedule<Self, C>,
         config: &C,
         old_c: &[f64]
     );

@@ -22,7 +22,7 @@ use std::io::{Write, BufWriter};
 use rayon::prelude::*;
 use crate::common_util::gen_random_strain;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CellList<P> {
     pub dim: usize,
     pub unit_cell: Vec<f64>, // Unit cell, stored as (dim*row + column), each row is a lattice vector
@@ -418,7 +418,9 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
         }
     }
     
-    fn apply_random_strain(mut self, schedule: &Schedule<P>, rng: &mut Xoshiro256StarStar) -> Option<(Self, f64)> {
+    fn apply_random_strain(mut self, schedule: &Schedule<P, Self>, rng: &mut Xoshiro256StarStar)
+        -> Option<(Self, f64)>
+    {
         // Choose random strain
         let (trace_strain, new_cell) = gen_random_strain(self.dim, &self.unit_cell, schedule, rng);
         // Apply strain to cell
@@ -451,7 +453,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
     }
 
     // Try to move a particle
-    fn try_particle_move(&mut self, schedule: &mut Schedule<P>, rng: &mut Xoshiro256StarStar) -> bool 
+    fn try_particle_move(&mut self, schedule: &mut Schedule<P, Self>, rng: &mut Xoshiro256StarStar) -> bool 
     {
         let r_idx: usize = Uniform::new(0, self.n_particles)
             .sample(rng);
