@@ -12,9 +12,9 @@ use crate::common_util::{apply_pbc, relative_to_global3, global_to_relative3};
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
 pub struct Sphere {
-    rel_pos: [f64; 3],
-    global_pos: [f64; 3],
-    radius: f64,
+    pub rel_pos: [f64; 3],
+    pub global_pos: [f64; 3],
+    pub radius: f64,
 }
 
 impl Sphere {

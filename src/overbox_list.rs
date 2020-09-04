@@ -16,8 +16,9 @@ use rand_distr::{Uniform, Distribution};
 use crate::schedule::Schedule;
 use crate::OPT;
 use crate::asc::Asc;
-use crate::common_util::{volume, gen_random_strain};
+use crate::common_util::{volume, gen_random_strain, min_float_slice};
 use crate::particle::Particle;
+use crate::cell_list::CellList;
 
 // Free helper functions
 
@@ -38,6 +39,17 @@ fn calc_offset(n: usize, dim: usize, overbox: usize, cell: &[f64]) -> Vec<f64>
     offset
 }
 
+// https://stackoverflow.com/questions/34572784/why-can-i-iterate-over-a-slice-twice-but-not-a-vector
+// https://doc.rust-lang.org/std/slice/
+fn is_zero(v: &[f64]) -> bool {
+    for val in v {
+        if *val != 0.0 {
+            return false
+        }
+    }
+    true
+}
+
 // cell stored as (dim*row + column)
 // and each row is interpreted as the
 // coordinates vx vy vz ... of a lattice
@@ -45,7 +57,7 @@ fn calc_offset(n: usize, dim: usize, overbox: usize, cell: &[f64]) -> Vec<f64>
 #[derive(Clone)]
 pub struct OverboxList<P> {
     pub dim: usize, // Dimension of configuration
-    overbox: usize, // # of overboxes, needed for small unit cell
+    pub overbox: usize, // # of overboxes, needed for small unit cell
     pub cell: Vec<f64>, // Unit Cell
     pub p_vec: Vec<P>, // List of particles
 }
@@ -84,6 +96,10 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> OverboxList<P> {
             .collect();
         let o_list = OverboxList { dim, overbox, cell, p_vec };
         o_list
+    }
+
+    pub fn from_cell_list(clist: CellList<P>) -> OverboxList<P> {
+        OverboxList { dim: clist.dim, overbox: 1, cell: clist.unit_cell, p_vec: clist.p_list }
     }
 
     // Make an rsa config
@@ -259,6 +275,28 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
             ).sum::<usize>()
         ).sum()
     */
+    }
+
+    fn particle_gap(&self, exclude_idx: usize, particle: &P) -> f64 {
+        let n_offset = (2*self.overbox + 1).pow(self.dim as u32);
+        let phi = self.packing_fraction();
+        let minimal_list: Vec<f64> = (0..n_offset)
+                .map(|x| calc_offset(x, self.dim, self.overbox, &self.cell))
+                .map(|offset|
+                    self.p_vec.iter().enumerate()
+                        .map(|(i, imaged)|
+                            if i == exclude_idx && is_zero(&offset) {
+                                f64::INFINITY
+                            } else {
+                                (phi/particle.overlap_scale(imaged, &offset)) - phi
+                            }
+                        )
+                        .collect::<Vec<f64>>()
+                )
+                .flatten()
+                .collect();
+
+        min_float_slice(&minimal_list)
     }
 
     fn cell_volume(&self) -> f64 {

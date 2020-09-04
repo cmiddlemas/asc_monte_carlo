@@ -24,17 +24,17 @@ use crate::common_util::gen_random_strain;
 
 #[derive(Clone)]
 pub struct CellList<P> {
-    dim: usize,
+    pub dim: usize,
     pub unit_cell: Vec<f64>, // Unit cell, stored as (dim*row + column), each row is a lattice vector
     pub p_list: Vec<P>,
-    n_particles: usize,
-    lin_subdiv: usize,
-    c_assoc_list: Vec<Vec<usize>>, // Association lists given as [cell1(p1...), cell2(p1...)...]
-    p_assoc_list: Vec<usize>, // Gives first (cell identity) index into c_assoc_list, same order as p_list
+    pub n_particles: usize,
+    pub lin_subdiv: usize,
+    pub c_assoc_list: Vec<Vec<usize>>, // Association lists given as [cell1(p1...), cell2(p1...)...]
+    pub p_assoc_list: Vec<usize>, // Gives first (cell identity) index into c_assoc_list, same order as p_list
 }
 
 impl<P> CellList<P> {
-    }
+}
 
 // Returns the maximum valid value of lin_subdiv given a dimension,
 // the current unit cell, and an upper bound on the radius of the 
@@ -388,6 +388,16 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
                 }
             }
         }
+
+        // If the smallest gap is still inf, then
+        // we need to resort to a brute force strategy
+        // Shouldn't have much effect on performance, since
+        // should be triggered rarely in the course of the simulation,
+        // at least after we leave the almost ideal gas state
+        if smallest_gap == f64::INFINITY {
+            let overbox_list = OverboxList::from_cell_list(self.clone());
+            smallest_gap = overbox_list.particle_gap(exclude_idx, particle);
+        }
         
         smallest_gap
     }
@@ -486,4 +496,97 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::overbox_list::OverboxList;
+    use crate::spheres::Sphere; 
 
+    #[test]
+    fn particle_gap1() {
+        // Find nearest gap in neighbor cell
+        let overbox_list = OverboxList {
+            dim: 3,
+            overbox: 1,
+            cell: vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            p_vec: vec![
+                Sphere {
+                    rel_pos: [0.201, 0.201, 0.201],
+                    global_pos: [0.201, 0.201, 0.201],
+                    radius: 0.1
+                },
+                Sphere {
+                    rel_pos: [0.201, 0.402, 0.201],
+                    global_pos: [0.201, 0.402, 0.201],
+                    radius: 0.1
+                }
+            ]
+        };
+        let cell_list = CellList::from_overbox_list(overbox_list);
+        assert!(cell_list.lin_subdiv == 5);
+        let gap = cell_list.particle_gap(0, cell_list.first_particle());
+        // Computed with Mathematica 12.0.0.0 Student Edition
+        let true_gap = 0.0001262930718718569;
+        eprintln!("gap: {}, true_gap: {}", gap, true_gap);
+        assert!((gap - true_gap).abs()/true_gap <= 1e-10);
+    }
+
+    #[test]
+    fn particle_gap2() {
+        // Find nearest gap in other cell
+        let overbox_list = OverboxList {
+            dim: 3,
+            overbox: 1,
+            cell: vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            p_vec: vec![
+                Sphere {
+                    rel_pos: [0.201, 0.201, 0.201],
+                    global_pos: [0.201, 0.201, 0.201],
+                    radius: 0.1
+                },
+                Sphere {
+                    rel_pos: [0.201, 0.601, 0.201],
+                    global_pos: [0.201, 0.601, 0.201],
+                    radius: 0.1
+                }
+            ]
+        };
+        let cell_list = CellList::from_overbox_list(overbox_list);
+        assert!(cell_list.lin_subdiv == 5);
+        let gap = cell_list.particle_gap(0, cell_list.first_particle());
+        // Computed with Mathematica 12.0.0.0 Student Edition
+        let true_gap = 0.05864306286700947;
+        eprintln!("gap: {}, true_gap: {}", gap, true_gap);
+        assert!((gap - true_gap).abs()/true_gap <= 1e-10);
+    }
+
+    #[test]
+    fn particle_gap3() {
+        // Find nearest gap in same cell
+        let overbox_list = OverboxList {
+            dim: 3,
+            overbox: 1,
+            cell: vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            p_vec: vec![
+                Sphere {
+                    rel_pos: [0.201, 0.201, 0.201],
+                    global_pos: [0.201, 0.201, 0.201],
+                    radius: 0.1
+                },
+                Sphere {
+                    rel_pos: [0.399, 0.399, 0.399],
+                    global_pos: [0.399, 0.399, 0.399],
+                    radius: 0.1
+                }
+            ]
+        };
+        let cell_list = CellList::from_overbox_list(overbox_list);
+        assert!(cell_list.lin_subdiv == 5);
+        let gap = cell_list.particle_gap(0, cell_list.first_particle());
+        // Computed with Mathematica 12.0.0.0 Student Edition
+        let true_gap = 0.03386068461403755;
+        eprintln!("gap: {}, true_gap: {}", gap, true_gap);
+        assert!((gap - true_gap).abs()/true_gap <= 1e-10);
+    }
+
+}

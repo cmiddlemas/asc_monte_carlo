@@ -17,7 +17,7 @@ Make sure all casts are non-UB, meaning add checks when going from float -> int
 This may not be necessary anymore with a new enough rust compiler, leaving comment
 here thought to remind
 1 September 2020
-IMPORTANT: Fix bug where nn can be wrong if no particle found in cell!!!
+(FIXED 3 September 2020) Fix bug where nn can be wrong if no particle found in cell!!!
 (FIXED 3 September 2020) Fix bug where json can't represent inf:
     https://github.com/serde-rs/json/issues/202
     (NOTE 3 September 2020) Still need to convert testing scripts
