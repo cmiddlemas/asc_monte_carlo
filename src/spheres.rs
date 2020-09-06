@@ -105,7 +105,7 @@ impl Particle for Sphere {
     }
 
     fn init_obs<C: Asc<Self>>(config: &C) -> Vec<f64> {
-        let (_, min_nn_gap, _, _,) = config.nn_gap_distribution();
+        let (_, min_nn_gap, _, _) = config.nn_gap_distribution();
         vec![0.0, 0.0, min_nn_gap, 0.0] // [samples, sum of volume, current min_nn_gap, sum of min_nn_gap]
     }
 
