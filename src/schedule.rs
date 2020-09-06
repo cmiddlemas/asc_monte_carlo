@@ -9,6 +9,7 @@ use std::io::{Read, Write};
 use crate::OPT;
 use crate::particle::Particle;
 use serde::{Serialize, Deserialize};
+use kiss3d::window::Window;
 
 pub fn write_data_file(contents: &str, suffix: &str) {
     if OPT.verbosity >= 1 {
@@ -194,7 +195,8 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone, C: Asc<P>> Schedule<P,
 
     pub fn run(&mut self,
                config: &mut C,
-               rng: &mut Xoshiro256StarStar)
+               rng: &mut Xoshiro256StarStar,
+               window: &mut Option<Window>)
     {
         let u_dist = Uniform::new(0.0, 1.0);
         for _i in 0..self.n_sweeps {
@@ -210,6 +212,11 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone, C: Asc<P>> Schedule<P,
                 }
             }
             P::sample_obs_sweep(self, config);
+            // https://doc.rust-lang.org/stable/rust-by-example/scope/borrow/ref.html
+            // https://www.reddit.com/r/rust/comments/bn1e5o/what_does_mut_in_mut_some_mean/
+            if let Some(ref mut w) = *window {
+                P::render_packing(w, config);
+            }
             self.post_sweep();
             if self.should_terminate() {
                 return;

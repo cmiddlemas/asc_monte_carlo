@@ -9,6 +9,8 @@ use std::fs::File;
 use structopt::StructOpt;
 use lazy_static::lazy_static;
 use chrono::prelude::*;
+use kiss3d::window::Window;
+use kiss3d::light::Light;
 
 mod asc;
 mod disks;
@@ -275,6 +277,10 @@ struct Opt {
     #[structopt(long)]
     gap_threshold: Option<f64>,
 
+    /// If given, render the packing in real time
+    #[structopt(long)]
+    render_packing: bool,
+
 }
 
 // Globals -------------------------------------------------------------------
@@ -309,9 +315,17 @@ fn make_and_run_schedule<C, P: Particle + Clone + Debug + Display + Send + Sync>
     } else {
         Schedule::make(config.first_particle(), &config)
     };
+    let mut window = if OPT.render_packing {
+        // https://github.com/sebcrozet/kiss3d
+        let mut w = Window::new("asc_monte_carlo visualization");
+        w.set_light(Light::StickToCamera);
+        Some(w)
+    } else {
+        None
+    };
     println!("Running schedule:");
     println!("{:?}", schedule);
-    schedule.run(&mut config, rng);
+    schedule.run(&mut config, rng, &mut window);
     println!("Ended schedule:");
     println!("{:?}", schedule);
     if OPT.savefiles.is_none() {
@@ -320,6 +334,11 @@ fn make_and_run_schedule<C, P: Particle + Clone + Debug + Display + Send + Sync>
     }
     schedule.save_in_log();
     save_asc_from_opt(&config, "final");
+    if let Some(mut w) = window {
+        // Needed to properly catch WM signals
+        // https://docs.rs/kiss3d/0.25.0/kiss3d/index.html
+        while P::render_packing(&mut w, &config) {}
+    }
     println!("Ending program at: {}", Utc::now());
 }
 

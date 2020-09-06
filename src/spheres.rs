@@ -8,6 +8,12 @@ use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log, write_data_file};
 use crate::PI;
 use crate::common_util::{apply_pbc, relative_to_global3, global_to_relative3};
+use kiss3d::window::Window;
+// https://github.com/sebcrozet/kiss3d/issues/66
+// sebcrozet evidently reversed decision in that thread,
+// so we don't need to manually resolve these dependencies ourselves!
+use kiss3d::nalgebra::Translation3;
+use kiss3d::scene::SceneNode;
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
@@ -178,6 +184,27 @@ impl Particle for Sphere {
             schedule.running_obs[2] = possible_gap;
         }
         schedule.running_obs[3] += schedule.running_obs[2];
+    }
+
+    fn render_packing<C: Asc<Self>>(window: &mut Window, config: &C) -> bool {
+        // Could use the solution in
+        // https://stackoverflow.com/questions/55293051/how-do-i-clear-the-scene-in-kiss3d
+        // but since our needs are simple, we're just going to keep track of all
+        // of the added objects and unlink them after drawing them.
+        let mut node_vec: Vec<SceneNode> = Vec::with_capacity(config.n_particles());
+        for p in config.particle_slice() {
+            let translation = Translation3::new(p.global_pos[0] as f32,
+                                                p.global_pos[1] as f32,
+                                                p.global_pos[2] as f32);
+            let mut sphere = window.add_sphere(p.radius as f32);
+            sphere.set_local_translation(translation);
+            node_vec.push(sphere);
+        }
+        let status = window.render();
+        for mut node in node_vec {
+            node.unlink();
+        }
+        status
     }
 
     fn hint_lower(&self) -> f64 {

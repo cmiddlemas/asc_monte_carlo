@@ -2,6 +2,7 @@ use crate::schedule::Schedule;
 use crate::asc::Asc;
 use std::fmt::{Debug, Display};
 use rand_xoshiro::Xoshiro256StarStar;
+use kiss3d::window::Window;
 
 pub trait Particle 
 where Self: Clone + Send + Sync + Debug + Display + std::marker::Sized {
@@ -60,6 +61,9 @@ where Self: Clone + Send + Sync + Debug + Display + std::marker::Sized {
         config: &C,
         old_c: &[f64]
     );
+
+    // Return code is just the propagation of window.render()
+    fn render_packing<C: Asc<Self>>(window: &mut Window, config: &C) -> bool { unimplemented!() }
 
     // Lower bound on dimension of particle
     fn hint_lower(&self) -> f64;
