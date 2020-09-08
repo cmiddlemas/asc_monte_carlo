@@ -204,13 +204,24 @@ where
                                                             + delta_phi_step/2.0)
                                                     .collect();
         let mut histogram = vec![0.0; OPT.n_bins_gap];
-        
+       
+        if min_delta_phi == max_delta_phi {
+            eprintln!("Warning: rare event where min = max delta phi, \
+                performing early return with all zeros for distribution!");
+            eprintln!("Current cell: {:?}", self.unit_cell());
+            return (min_delta_phi, min_delta_phi, min_delta_phi, vec![[0.0; 3]; OPT.n_bins_gap])
+        }
+
         for obs in delta_phi {
             // Safely cast float to int
             // https://github.com/rust-lang/rust/issues/10184
             let proposed_bin_f64 = (obs - min_delta_phi)/delta_phi_step;
-            // eprintln!("{} {}", min_delta_phi, max_delta_phi);
-            assert!(proposed_bin_f64.is_finite());
+            assert!(proposed_bin_f64.is_finite(), "{} {} {} {} {:?}",
+                proposed_bin_f64,
+                min_delta_phi,
+                max_delta_phi,
+                obs,
+                self.unit_cell());
             assert!(proposed_bin_f64 >= 0.0 && proposed_bin_f64 <= 10000000.0);
             let proposed_bin = proposed_bin_f64 as usize;
             if proposed_bin < OPT.n_bins_gap {

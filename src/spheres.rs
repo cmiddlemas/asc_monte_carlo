@@ -12,8 +12,21 @@ use kiss3d::window::Window;
 // https://github.com/sebcrozet/kiss3d/issues/66
 // sebcrozet evidently reversed decision in that thread,
 // so we don't need to manually resolve these dependencies ourselves!
-use kiss3d::nalgebra::Translation3;
+use kiss3d::nalgebra::{Translation3, Point3};
 use kiss3d::scene::SceneNode;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref RED: Point3<f32> = Point3::new(1.0, 0.0, 0.0);
+}
+
+lazy_static! {
+    static ref GREEN: Point3<f32> = Point3::new(0.0, 1.0, 0.0);
+}
+
+lazy_static! {
+    static ref BLUE: Point3<f32> = Point3::new(0.0, 0.0, 1.0);
+}
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust
 #[derive(Debug, Clone)]
@@ -192,6 +205,8 @@ impl Particle for Sphere {
         // but since our needs are simple, we're just going to keep track of all
         // of the added objects and unlink them after drawing them.
         let mut node_vec: Vec<SceneNode> = Vec::with_capacity(config.n_particles());
+        
+        // Place particles
         for p in config.particle_slice() {
             let translation = Translation3::new(p.global_pos[0] as f32,
                                                 p.global_pos[1] as f32,
@@ -200,10 +215,30 @@ impl Particle for Sphere {
             sphere.set_local_translation(translation);
             node_vec.push(sphere);
         }
+
+        // Place unit cell
+        let cell = config.unit_cell();
+        let origin = Point3::new(0.0f32, 0.0f32, 0.0f32);
+        let u1 = Point3::new(cell[0] as f32,
+                             cell[1] as f32,
+                             cell[2] as f32);
+        window.draw_line(&origin, &u1, &*RED);
+        let u2 = Point3::new(cell[3] as f32,
+                             cell[4] as f32,
+                             cell[5] as f32);
+        window.draw_line(&origin, &u2, &*GREEN);
+        let u3 = Point3::new(cell[6] as f32,
+                             cell[7] as f32,
+                             cell[8] as f32);
+        window.draw_line(&origin, &u3, &*BLUE);
+
         let status = window.render();
+        
+        // Clean up window
         for mut node in node_vec {
             node.unlink();
         }
+        
         status
     }
 

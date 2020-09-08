@@ -281,6 +281,10 @@ struct Opt {
     #[structopt(long)]
     render_packing: bool,
 
+    /// Give the number of overboxes used in making overbox list
+    /// using RSA generator.
+    #[structopt(long, default_value = "1")]
+    overbox: usize,
 }
 
 // Globals -------------------------------------------------------------------

@@ -110,7 +110,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> OverboxList<P> {
                     rng: &mut Xoshiro256StarStar // Reproducible Rng
     ) -> OverboxList<P> {
         let mut new_asc = OverboxList 
-            { dim: dim, overbox: 1, cell: init_cell.clone(), p_vec: Vec::new() };
+            { dim: dim, overbox: OPT.overbox, cell: init_cell.clone(), p_vec: Vec::new() };
         while new_asc.p_vec.len() < n {
             if new_asc.try_add_particle(
                 shape.copy_shape_random_coord(
