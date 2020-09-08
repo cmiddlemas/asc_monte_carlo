@@ -189,6 +189,50 @@ pub fn max_float_slice(slice: &[f64]) -> f64 {
     current_max
 }
 
+pub fn min_width(dim: usize, unit_cell: &[f64]) -> f64 {
+    let vol = volume(dim, unit_cell);
+    match dim {
+        2 => {
+            let u = Matrix2::from_column_slice(unit_cell);
+            let base0 = u.column(0).norm();
+            let base1 = u.column(1).norm();
+            let max_base = base0.max(base1);
+            vol/max_base
+        }
+        3 => {
+            let u = Matrix3::from_column_slice(unit_cell);
+            let base0 = u.column(0).cross(&u.column(1)).norm();
+            let base1 = u.column(1).cross(&u.column(2)).norm();
+            let base2 = u.column(2).cross(&u.column(0)).norm();
+            let max_base = base0.max(base1.max(base2));
+            vol/max_base
+        }
+        _ => unimplemented!(),
+    }
+}
+
+pub fn max_width(dim: usize, unit_cell: &[f64]) -> f64 {
+    let vol = volume(dim, unit_cell);
+    match dim {
+        2 => {
+            let u = Matrix2::from_column_slice(unit_cell);
+            let base0 = u.column(0).norm();
+            let base1 = u.column(1).norm();
+            let min_base = base0.min(base1);
+            vol/min_base
+        }
+        3 => {
+            let u = Matrix3::from_column_slice(unit_cell);
+            let base0 = u.column(0).cross(&u.column(1)).norm();
+            let base1 = u.column(1).cross(&u.column(2)).norm();
+            let base2 = u.column(2).cross(&u.column(0)).norm();
+            let min_base = base0.min(base1.min(base2));
+            vol/min_base
+        }
+        _ => unimplemented!(),
+    }
+}
+
 // Makes a linear fit y = a + bx to the given data
 // Goes by least squares
 // return

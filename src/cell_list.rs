@@ -20,7 +20,7 @@ use itertools::{Itertools, Position};
 use std::fs::{File, OpenOptions};
 use std::io::{Write, BufWriter};
 use rayon::prelude::*;
-use crate::common_util::gen_random_strain;
+use crate::common_util::{min_width, gen_random_strain};
 
 #[derive(Clone, Debug)]
 pub struct CellList<P> {
@@ -46,36 +46,13 @@ impl<P> CellList<P> {
 fn max_subdiv(dim: usize, unit_cell: &[f64], max_radius: f64) -> usize {
     let vol = volume(dim, unit_cell);
     let max_diam = 2.0*max_radius;
-    match dim {
-        2 => {
-            let u = Matrix2::from_column_slice(unit_cell);
-            let base0 = u.column(0).norm();
-            let base1 = u.column(1).norm();
-            let max_base = base0.max(base1);
-            let min_width = vol/max_base;
-            // https://stackoverflow.com/questions/37506672/convert-float-to-integer-in-rust
-            // Safely convert between float and usize
-            let answer_f64 = (min_width/max_diam).floor();
-            assert!(answer_f64.is_finite());
-            assert!(answer_f64 >= 0.0 && answer_f64 <= 100000000.0);
-            answer_f64 as usize
-        }
-        3 => {
-            let u = Matrix3::from_column_slice(unit_cell);
-            let base0 = u.column(0).cross(&u.column(1)).norm();
-            let base1 = u.column(1).cross(&u.column(2)).norm();
-            let base2 = u.column(2).cross(&u.column(0)).norm();
-            let max_base = base0.max(base1.max(base2));
-            let min_width = vol/max_base;
-            // Safely convert between float and usize
-            let answer_f64 = (min_width/max_diam).floor();
-            assert!(answer_f64.is_finite());
-            assert!(answer_f64 >= 0.0 && answer_f64 <= 100000000.0);
-            answer_f64 as usize
-
-        }
-        _ => unimplemented!(),
-    }
+    let min_width = min_width(dim, unit_cell);    
+    // https://stackoverflow.com/questions/37506672/convert-float-to-integer-in-rust
+    // Safely convert between float and usize
+    let answer_f64 = (min_width/max_diam).floor();
+    assert!(answer_f64.is_finite());
+    assert!(answer_f64 >= 0.0 && answer_f64 <= 100000000.0);
+    answer_f64 as usize
 }
 
 // Cell layout:
@@ -486,6 +463,8 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
     fn n_particles(&self) -> usize { self.n_particles }
 
     fn unit_cell(&self) -> &[f64] { &self.unit_cell }
+
+    fn dim(&self) -> usize { self.dim }
 
     // Return a reference to the first particle stored in Asc
     fn first_particle(&self) -> &P

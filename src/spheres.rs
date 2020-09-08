@@ -125,26 +125,30 @@ impl Particle for Sphere {
 
     fn init_obs<C: Asc<Self>>(config: &C) -> Vec<f64> {
         let (_, min_nn_gap, _, _) = config.nn_gap_distribution();
-        vec![0.0, 0.0, min_nn_gap, 0.0] // [samples, sum of volume, current min_nn_gap, sum of min_nn_gap]
+        // [samples, sum of volume, current min_nn_gap, sum of min_nn_gap, sum of aspect ratio]
+        vec![0.0, 0.0, min_nn_gap, 0.0, 0.0] 
     }
 
     fn sample_obs_sweep<C: Asc<Self>>(schedule: &mut Schedule<Self, C>, config: &C) {
         let vol = schedule.running_obs[1]/schedule.running_obs[0];
         let avg_min_gap = schedule.running_obs[3]/schedule.running_obs[0];
+        let aspect_ratio = schedule.running_obs[4]/schedule.running_obs[0];
         schedule.running_obs = Self::init_obs(config);
         println!("Cell volume averaged over sweep: {}", vol);
+        println!("Aspect ratio averaged over sweep: {}", aspect_ratio);
         let phi = config.packing_fraction();
         schedule.phi = phi;
         println!("Phi at end of sweep: {}", phi);
         let (avg_nn_gap, min_nn_gap, max_nn_gap, gap_distr) = config.nn_gap_distribution();
         schedule.avg_gap = avg_nn_gap;
+        println!("Average min gap, mean gap: {} {}", avg_min_gap, avg_nn_gap);
         let gap_string: String = gap_distr.iter()
                                           .map(|x| format!("{} {} {}\n", x[0], x[1], x[2]))
                                           .fold(String::new(), |acc, x| acc + &x);
         let fname = format!("nn_gap_{}", schedule.current_sweep);
         write_data_file(&gap_string, &fname);
         let (pressure, unc_pressure, chisq) = config.instantaneous_pressure();
-        let logline = format!("{} {} {} {} {} {} {} {} {}", schedule.current_sweep,
+        let logline = format!("{} {} {} {} {} {} {} {} {} {}", schedule.current_sweep,
                                                 vol,
                                                 phi,
                                                 pressure,
@@ -152,7 +156,8 @@ impl Particle for Sphere {
                                                 avg_min_gap,
                                                 avg_nn_gap,
                                                 min_nn_gap,
-                                                max_nn_gap);
+                                                max_nn_gap,
+                                                aspect_ratio);
         write_sweep_log(&logline);
         save_asc_from_opt(config, &format!("sweep_{}", schedule.current_sweep));
     }
@@ -166,6 +171,7 @@ impl Particle for Sphere {
         schedule.running_obs[1] += config.cell_volume();
         // The new min_nn_gap is the same as the old
         schedule.running_obs[3] += schedule.running_obs[2];
+        schedule.running_obs[4] += config.aspect_ratio();
     }
 
     fn sample_obs_accepted_pmove<C: Asc<Self>>(
@@ -182,6 +188,7 @@ impl Particle for Sphere {
             schedule.running_obs[2] = possible_gap;
         }
         schedule.running_obs[3] += schedule.running_obs[2];
+        schedule.running_obs[4] += config.aspect_ratio();
     }
     
     fn sample_obs_accepted_cmove<C: Asc<Self>>(
@@ -197,6 +204,7 @@ impl Particle for Sphere {
             schedule.running_obs[2] = possible_gap;
         }
         schedule.running_obs[3] += schedule.running_obs[2];
+        schedule.running_obs[4] += config.aspect_ratio();
     }
 
     fn render_packing<C: Asc<Self>>(window: &mut Window, config: &C) -> bool {

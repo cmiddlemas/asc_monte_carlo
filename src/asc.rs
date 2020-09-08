@@ -9,7 +9,7 @@ use std::path::Path;
 use crate::OPT;
 use crate::schedule::Schedule;
 use crate::particle::Particle;
-use crate::common_util::{min_float_slice, max_float_slice, linear_fit};
+use crate::common_util::{min_width, max_width, min_float_slice, max_float_slice, linear_fit};
 use std::fs::{OpenOptions, rename};
 use rand_distr::{Uniform, Distribution};
 
@@ -83,6 +83,12 @@ where
 
     // Return cell volume
     fn cell_volume(&self) -> f64;
+
+    fn aspect_ratio(&self) -> f64 {
+        let dim = self.dim();
+        let cell = self.unit_cell();
+        max_width(dim, cell)/min_width(dim, cell)
+    }
 
     // True if no overlaps
     fn is_valid(&self) -> bool;
@@ -174,6 +180,9 @@ where
 
     // Return a slice that gives the unit cell
     fn unit_cell(&self) -> &[f64];
+
+    // Return the dimension of the configuration
+    fn dim(&self) -> usize;
 
     // Return a reference to the first particle stored in Asc
     fn first_particle(&self) -> &P;
