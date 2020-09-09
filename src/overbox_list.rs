@@ -306,7 +306,7 @@ impl<P: Particle + Debug + Display + Clone + Send + Sync> Asc<P> for OverboxList
     fn dim(&self) -> usize { self.dim }
 
     fn is_valid(&self) -> bool {
-        if OPT.parallelize_inner {
+        if OPT.parallelize_inner || OPT.no_rayon {
             self.p_vec.iter()
                 .map(|p| self.check_particle(p))
                 .all(|x| x <= 1)
