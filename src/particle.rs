@@ -1,4 +1,4 @@
-use crate::schedule::Schedule;
+use crate::schedule::{ObservableTracker, Schedule};
 use crate::asc::Asc;
 use std::fmt::{Debug, Display};
 use rand_xoshiro::Xoshiro256StarStar;
@@ -37,7 +37,7 @@ where Self: Clone + Send + Sync + Debug + Display + std::marker::Sized {
 
     fn apply_strain(&mut self, new_cell: &[f64]);
    
-    fn init_obs<C: Asc<Self>>(config: &C) -> Vec<f64>;
+    fn init_obs<C: Asc<Self>>(config: &C) -> ObservableTracker;
 
     fn sample_obs_sweep<C: Asc<Self>>(
         schedule: &mut Schedule<Self, C>,

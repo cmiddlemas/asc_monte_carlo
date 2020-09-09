@@ -4,7 +4,7 @@ use rand_distr::{Uniform, Distribution, Normal};
 use std::fmt::{Display, Formatter};
 use std::fmt;
 use crate::asc::{Asc, save_asc_from_opt};
-use crate::schedule::{Schedule, write_sweep_log};
+use crate::schedule::{ObservableTracker, Schedule, write_sweep_log};
 // https://stackoverflow.com/questions/31208465/pi-constant-is-ambiguous
 use std::f64::consts::PI;
 use std::convert::TryInto;
@@ -90,13 +90,13 @@ impl Particle for Disk {
         self.global_pos = relative_to_global2(new_cell, &self.rel_pos);
     }
 
-    fn init_obs<C: Asc<Self>>(_config: &C) -> Vec<f64> {
-        vec![0.0, 0.0] // [samples, sum of volume]
+    fn init_obs<C: Asc<Self>>(_config: &C) -> ObservableTracker {
+        ObservableTracker::new()
     }
 
     fn sample_obs_sweep<C: Asc<Self>>(schedule: &mut Schedule<Self, C>, config: &C) {
-        let vol = schedule.running_obs[1]/schedule.running_obs[0];
-        schedule.running_obs = vec![0.0,0.0];
+        let vol = schedule.running_obs.sum_of_vol/schedule.running_obs.n_samples;
+        schedule.running_obs = Self::init_obs(config);
         println!("Cell volume over sweep: {}", vol);
         let phi = (config.n_particles() as f64)
             *PI*config.first_particle().radius.powi(2)
@@ -113,8 +113,8 @@ impl Particle for Disk {
         config: &C
     )
     {
-        schedule.running_obs[0] += 1.0;
-        schedule.running_obs[1] += config.cell_volume();
+        schedule.running_obs.n_samples += 1.0;
+        schedule.running_obs.sum_of_vol += config.cell_volume();
     }
 
     fn sample_obs_accepted_pmove<C: Asc<Self>>(
@@ -124,8 +124,8 @@ impl Particle for Disk {
         _old_p: &Self
     )
     {
-        schedule.running_obs[0] += 1.0;
-        schedule.running_obs[1] += config.cell_volume();
+        schedule.running_obs.n_samples += 1.0;
+        schedule.running_obs.sum_of_vol += config.cell_volume();
     }
     
     fn sample_obs_accepted_cmove<C: Asc<Self>>(
@@ -134,8 +134,8 @@ impl Particle for Disk {
         _old_c: &[f64]
     )
     {
-        schedule.running_obs[0] += 1.0;
-        schedule.running_obs[1] += config.cell_volume();
+        schedule.running_obs.n_samples += 1.0;
+        schedule.running_obs.sum_of_vol += config.cell_volume();
     }
 
     fn hint_lower(&self) -> f64 {

@@ -52,6 +52,36 @@ pub fn write_sweep_log(logline: &str) {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ObservableTracker {
+    pub n_samples: f64,
+    pub sum_of_vol: f64,
+    pub sum_of_ar: f64, // Aspect ratio of unit cell
+    pub min_nn_gap: f64,
+    pub idx_min_nn_gap: usize,
+    pub next_to_min_nn_gap: f64,
+    pub idx_next_to_min_nn_gap: usize,
+    pub sum_of_min_nn_gap: f64,
+}
+
+impl ObservableTracker {
+    // Basic observable tracker for those particle
+    // types which only use trivial fields like
+    // volume and aspect ratio
+    pub fn new() -> ObservableTracker {
+        ObservableTracker {
+            n_samples: 0.0,
+            sum_of_vol: 0.0,
+            sum_of_ar: 0.0,
+            min_nn_gap: 0.0,
+            idx_min_nn_gap: 0,
+            next_to_min_nn_gap: 0.0,
+            idx_next_to_min_nn_gap: 0,
+            sum_of_min_nn_gap: 0.0
+        }
+    }
+}
+
 // https://github.com/serde-rs/serde
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Schedule<P,C> {
@@ -66,7 +96,7 @@ pub struct Schedule<P,C> {
     p_cell_move: f64,
     pub cell_param: Vec<f64>,
     pub particle_param: Vec<f64>,
-    pub running_obs: Vec<f64>,
+    pub running_obs: ObservableTracker,
     pub beta: f64,
     pub phi: f64,
     pub avg_gap: f64,

@@ -5,7 +5,7 @@ use std::fmt::{Display, Formatter};
 use std::fmt;
 use std::convert::TryInto;
 use crate::asc::{Asc, save_asc_from_opt};
-use crate::schedule::{Schedule, write_sweep_log, write_data_file};
+use crate::schedule::{ObservableTracker, Schedule, write_sweep_log, write_data_file};
 use std::f64::consts::PI;
 use crate::common_util::{apply_pbc, relative_to_global3, global_to_relative3};
 use kiss3d::window::Window;
@@ -123,16 +123,24 @@ impl Particle for Sphere {
         self.global_pos = relative_to_global3(new_cell, &self.rel_pos);
     }
 
-    fn init_obs<C: Asc<Self>>(config: &C) -> Vec<f64> {
+    fn init_obs<C: Asc<Self>>(config: &C) -> ObservableTracker {
         let (_, min_nn_gap, _, _) = config.nn_gap_distribution();
-        // [samples, sum of volume, current min_nn_gap, sum of min_nn_gap, sum of aspect ratio]
-        vec![0.0, 0.0, min_nn_gap, 0.0, 0.0] 
+        ObservableTracker {
+            n_samples: 0.0,
+            sum_of_vol: 0.0,
+            sum_of_ar: 0.0,
+            min_nn_gap,
+            idx_min_nn_gap: 0,
+            next_to_min_nn_gap: 0.0,
+            idx_next_to_min_nn_gap: 0,
+            sum_of_min_nn_gap: 0.0
+        }
     }
 
     fn sample_obs_sweep<C: Asc<Self>>(schedule: &mut Schedule<Self, C>, config: &C) {
-        let vol = schedule.running_obs[1]/schedule.running_obs[0];
-        let avg_min_gap = schedule.running_obs[3]/schedule.running_obs[0];
-        let aspect_ratio = schedule.running_obs[4]/schedule.running_obs[0];
+        let vol = schedule.running_obs.sum_of_vol/schedule.running_obs.n_samples;
+        let avg_min_gap = schedule.running_obs.sum_of_min_nn_gap/schedule.running_obs.n_samples;
+        let aspect_ratio = schedule.running_obs.sum_of_ar/schedule.running_obs.n_samples;
         schedule.running_obs = Self::init_obs(config);
         println!("Cell volume averaged over sweep: {}", vol);
         println!("Aspect ratio averaged over sweep: {}", aspect_ratio);
@@ -167,11 +175,11 @@ impl Particle for Sphere {
         config: &C
     )
     {
-        schedule.running_obs[0] += 1.0;
-        schedule.running_obs[1] += config.cell_volume();
+        schedule.running_obs.n_samples += 1.0;
+        schedule.running_obs.sum_of_vol += config.cell_volume();
         // The new min_nn_gap is the same as the old
-        schedule.running_obs[3] += schedule.running_obs[2];
-        schedule.running_obs[4] += config.aspect_ratio();
+        schedule.running_obs.sum_of_min_nn_gap += schedule.running_obs.min_nn_gap;
+        schedule.running_obs.sum_of_ar += config.aspect_ratio();
     }
 
     fn sample_obs_accepted_pmove<C: Asc<Self>>(
@@ -181,14 +189,14 @@ impl Particle for Sphere {
         _old_p: &Self
     )
     {
-        schedule.running_obs[0] += 1.0;
-        schedule.running_obs[1] += config.cell_volume();
+        schedule.running_obs.n_samples += 1.0;
+        schedule.running_obs.sum_of_vol += config.cell_volume();
         let possible_gap = config.particle_gap(changed_idx, &config.particle_slice()[changed_idx]);
-        if possible_gap < schedule.running_obs[2] {
-            schedule.running_obs[2] = possible_gap;
+        if possible_gap < schedule.running_obs.min_nn_gap {
+            schedule.running_obs.min_nn_gap = possible_gap;
         }
-        schedule.running_obs[3] += schedule.running_obs[2];
-        schedule.running_obs[4] += config.aspect_ratio();
+        schedule.running_obs.sum_of_min_nn_gap += schedule.running_obs.min_nn_gap;
+        schedule.running_obs.sum_of_ar += config.aspect_ratio();
     }
     
     fn sample_obs_accepted_cmove<C: Asc<Self>>(
@@ -197,14 +205,14 @@ impl Particle for Sphere {
         _old_c: &[f64]
     )
     {
-        schedule.running_obs[0] += 1.0;
-        schedule.running_obs[1] += config.cell_volume();
+        schedule.running_obs.n_samples += 1.0;
+        schedule.running_obs.sum_of_vol += config.cell_volume();
         let (_, possible_gap, _, _) = config.nn_gap_distribution();
-        if possible_gap < schedule.running_obs[2] {
-            schedule.running_obs[2] = possible_gap;
+        if possible_gap < schedule.running_obs.min_nn_gap {
+            schedule.running_obs.min_nn_gap = possible_gap;
         }
-        schedule.running_obs[3] += schedule.running_obs[2];
-        schedule.running_obs[4] += config.aspect_ratio();
+        schedule.running_obs.sum_of_min_nn_gap += schedule.running_obs.min_nn_gap;
+        schedule.running_obs.sum_of_ar += config.aspect_ratio();
     }
 
     fn render_packing<C: Asc<Self>>(window: &mut Window, config: &C) -> bool {

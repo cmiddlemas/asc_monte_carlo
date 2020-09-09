@@ -8,7 +8,7 @@ use std::cmp::PartialEq;
 use nalgebra::{Matrix3, Vector3, Quaternion, UnitQuaternion};
 use rgsl::{Minimizer, MinimizerType, Value, minimizer};
 use crate::asc::{Asc, save_asc_from_opt};
-use crate::schedule::{Schedule, write_sweep_log};
+use crate::schedule::{ObservableTracker, Schedule, write_sweep_log};
 use crate::OPT;
 use std::f64::consts::PI;
 use crate::common_util::{apply_pbc, relative_to_global3, global_to_relative3};
@@ -295,13 +295,13 @@ impl Particle for Ellipsoid {
         self.global_pos = relative_to_global3(new_cell, &self.rel_pos);
     }
 
-    fn init_obs<C: Asc<Self>>(config: &C) -> Vec<f64> {
-        vec![0.0, 0.0] // [samples, sum of volume]
+    fn init_obs<C: Asc<Self>>(config: &C) -> ObservableTracker {
+        ObservableTracker::new()
     }
 
     fn sample_obs_sweep<C: Asc<Self>>(schedule: &mut Schedule<Self, C>, config: &C) {
-        let vol = schedule.running_obs[1]/schedule.running_obs[0];
-        schedule.running_obs = vec![0.0,0.0];
+        let vol = schedule.running_obs.sum_of_vol/schedule.running_obs.n_samples;
+        schedule.running_obs = Self::init_obs(config);
         println!("Cell volume over sweep: {}", vol);
         let semi_prod: f64 = config.first_particle().semi_axes.iter().product();
         let phi = (config.n_particles() as f64)*4.0*PI*semi_prod/(3.0*vol);
@@ -317,8 +317,8 @@ impl Particle for Ellipsoid {
         config: &C
     )
     {
-        schedule.running_obs[0] += 1.0;
-        schedule.running_obs[1] += config.cell_volume();
+        schedule.running_obs.sum_of_vol += 1.0;
+        schedule.running_obs.n_samples += config.cell_volume();
     }
 
     fn sample_obs_accepted_pmove<C: Asc<Self>>(
@@ -328,8 +328,8 @@ impl Particle for Ellipsoid {
         _old_p: &Self
     )
     {
-        schedule.running_obs[0] += 1.0;
-        schedule.running_obs[1] += config.cell_volume();
+        schedule.running_obs.sum_of_vol += 1.0;
+        schedule.running_obs.n_samples += config.cell_volume();
     }
     
     fn sample_obs_accepted_cmove<C: Asc<Self>>(
@@ -338,8 +338,8 @@ impl Particle for Ellipsoid {
         _old_c: &[f64]
     )
     {
-        schedule.running_obs[0] += 1.0;
-        schedule.running_obs[1] += config.cell_volume();
+        schedule.running_obs.sum_of_vol += 1.0;
+        schedule.running_obs.n_samples += config.cell_volume();
     }
 
     fn hint_lower(&self) -> f64 {
