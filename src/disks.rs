@@ -5,7 +5,8 @@ use std::fmt::{Display, Formatter};
 use std::fmt;
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
-use crate::PI;
+// https://stackoverflow.com/questions/31208465/pi-constant-is-ambiguous
+use std::f64::consts::PI;
 use std::convert::TryInto;
 use crate::common_util::{apply_pbc, global_to_relative2, relative_to_global2};
 

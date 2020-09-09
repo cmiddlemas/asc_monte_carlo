@@ -289,9 +289,6 @@ struct Opt {
 
 // Globals -------------------------------------------------------------------
 
-// Computed with Mathematica Student 11.2.0.0
-const PI: f64 = 3.141592653589793;
-
 lazy_static! {
     static ref OPT: Opt = Opt::from_args();
 }

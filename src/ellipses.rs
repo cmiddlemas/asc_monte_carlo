@@ -8,7 +8,8 @@ use nalgebra::{Matrix2, Vector2};
 use rgsl::{Minimizer, MinimizerType, Value, minimizer};
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log};
-use crate::{PI,OPT};
+use crate::OPT;
+use std::f64::consts::PI;
 use crate::common_util::{apply_pbc, relative_to_global2, global_to_relative2};
 
 // https://stackoverflow.com/questions/26958178/how-do-i-automatically-implement-comparison-for-structs-with-floats-in-rust

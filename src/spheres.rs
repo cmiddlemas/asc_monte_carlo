@@ -6,7 +6,7 @@ use std::fmt;
 use std::convert::TryInto;
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{Schedule, write_sweep_log, write_data_file};
-use crate::PI;
+use std::f64::consts::PI;
 use crate::common_util::{apply_pbc, relative_to_global3, global_to_relative3};
 use kiss3d::window::Window;
 // https://github.com/sebcrozet/kiss3d/issues/66
