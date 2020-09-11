@@ -241,6 +241,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone, C: Asc<P>> Schedule<P,
                     }
                 }
             }
+            assert!(config.is_valid());
             P::sample_obs_sweep(self, config);
             // https://doc.rust-lang.org/stable/rust-by-example/scope/borrow/ref.html
             // https://www.reddit.com/r/rust/comments/bn1e5o/what_does_mut_in_mut_some_mean/
