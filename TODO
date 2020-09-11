@@ -24,3 +24,6 @@ here thought to remind
 4 September 2020
 IMPORTANT: There is suspected bug in averaging min nn gap or point sampling,
 based on data in mrj_sphere_two_stage_slower
+10 September 2020
+IMPORTANT: Latent bug, still need to propagate symmetry of particle gap distance
+to disks, ellipses, and ellipsoids

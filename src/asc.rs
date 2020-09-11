@@ -12,6 +12,14 @@ use crate::particle::Particle;
 use crate::common_util::{min_width, max_width, min_float_slice, max_float_slice, linear_fit};
 use std::fs::{OpenOptions, rename};
 use rand_distr::{Uniform, Distribution};
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref WARN: bool = {
+        eprintln!("Warning: failure to strain cell because data structure became invalid");
+        true
+    };
+}
 
 pub fn save_asc_from_opt<C, P: Particle + Debug + Display + Send + Sync + Clone>
     (config: &C, annotation: &str)
@@ -79,7 +87,7 @@ where
     // Give nearest particle gap in terms of delta_phi
     // Need to give the unique index of the particle as well for
     // exclusion purposes
-    fn particle_gap(&self, exclude_idx: usize, particle: &P) -> f64 { unimplemented!() }
+    fn particle_gap(&self, exclude_idx: usize, particle: &P) -> f64;
 
     // Return cell volume
     fn cell_volume(&self) -> f64;
@@ -159,7 +167,7 @@ where
             // working
             // Log a warning, since this is unexpected, but not necessarily incorrect
             // behavior, it is likely due to setting cell changes too large
-            eprintln!("Warning: failure to strain cell because data structure became invalid");
+            crate::consume(&*WARN);
             false
         }
     }

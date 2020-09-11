@@ -5,6 +5,7 @@ use rand::Rng;
 use rand_xoshiro::Xoshiro256StarStar;
 use crate::schedule::Schedule;
 use crate::OPT;
+use crate::particle::Particle;
 
 // For FFI
 use libc::{c_double, size_t, c_int};
@@ -65,6 +66,13 @@ pub fn relative_to_global3(unit_cell: &[f64], rel_coord: &[f64]) -> [f64; 3] {
     let u = Matrix3::from_column_slice(unit_cell);
     let l_r = Vector3::from_column_slice(rel_coord);
     (u*l_r).as_slice().try_into().unwrap()
+}
+
+// Even though floating point math usually isn't distributive, this
+// works since we are only distributing to make additive inverses
+// https://cs.nyu.edu/~joannakl/cs201.03_s17/notes/Lecture03_floating_point_numbers.pdf
+pub fn negate(slice: &[f64]) -> Vec<f64> {
+    slice.iter().map(|x| -(*x)).collect()
 }
 
 // TODO: maybe make 2d with nalgebra too?

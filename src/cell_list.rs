@@ -265,7 +265,7 @@ fn cells_around(cell: usize, dim: usize, lin_subdiv: usize, unit_cell: &[f64])
 
                         let out_idx = pbc_x_idx + lin_subdiv*pbc_y_idx + lin_subdiv*lin_subdiv*pbc_z_idx;
 
-                        surrounding_list.push((out_idx, Vec::<f64>::from(offset.as_slice())));
+                        surrounding_list.push((out_idx, Vec::<f64>::from((offset).as_slice())));
                     }
                 }
             }
@@ -358,6 +358,13 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
             for p_idx in &self.c_assoc_list[cell] {
                 if *p_idx != exclude_idx { // don't compute gap for particle with itself
                     let scale = particle.overlap_scale(&self.p_list[*p_idx], &offset);
+                    //assert!(scale <= 1.0, "{} {} {} {:?} {:?} {:?}",
+                    //        scale,
+                    //        particle.check_overlap(&self.p_list[*p_idx], &offset),
+                    //        self.is_valid(),
+                    //        self.unit_cell(),
+                    //        &particle,
+                    //        &self.p_list[*p_idx]);
                     let gap = (phi/scale) - phi;
                     if gap < smallest_gap {
                         smallest_gap = gap;
@@ -445,6 +452,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
                 schedule,
                 self
             );
+            //assert!(self.is_valid());
             false
         } else { //accept
             //eprintln!("accept pmove");
@@ -455,6 +463,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone> Asc<P> for CellList<P>
                 &old_p
             );
             schedule.particle_accepts[move_type] += 1;
+            //assert!(self.is_valid(), "{:?}, {:?}", &self.p_list[r_idx], &self.unit_cell);
             true
         }
     }
@@ -568,6 +577,92 @@ mod tests {
         let true_gap = 0.03386068461403755;
         eprintln!("gap: {}, true_gap: {}", gap, true_gap);
         assert!((gap - true_gap).abs()/true_gap <= 1e-10);
+    }
+
+    #[test]
+    fn symmetric_invalidation1() {
+        // Show two particles, which have the property that
+        // overlap(1,2) = 1 and overlap(2,1) = 2 when computed
+        // with a non-symmetric or non-decision making method
+        // for computing overlaps
+        use crate::common_util::{global_to_relative3, relative_to_global3};
+        use std::convert::TryInto;
+        let unit_cell = vec![3.982197460629651, 0.13715627693204338, 0.49349869179284556, 0.08310728005514077, 3.3947201254916064, -0.6848127113190684, 0.6571811393005731, -0.7374698335070697, 4.5158482079131845];
+        let rel_pos1 = [0.11061712357162513, 0.2454929018265659, 0.190921542191982];
+        let global_pos1 = relative_to_global3(&unit_cell, &rel_pos1);
+        let rel_pos2 = [0.039411461262676944, 0.22175768105691646, 0.7727097479639695];
+        let global_pos2 = relative_to_global3(&unit_cell, &rel_pos2);
+        let overbox_list = OverboxList {
+            dim: 3,
+            overbox: 1,
+            cell: unit_cell,
+            p_vec: vec![
+                Sphere {
+                    rel_pos: rel_pos1,
+                    global_pos: global_pos1,
+                    radius: 1.0
+                },
+                Sphere {
+                    rel_pos: rel_pos2,
+                    global_pos: global_pos2,
+                    radius: 1.0
+                }
+            ]
+        };
+        let cell_list = CellList::from_overbox_list(overbox_list);
+        let p1 = &cell_list.particle_slice()[0];
+        let p2 = &cell_list.particle_slice()[1];
+        let check1 = cell_list.check_particle(p1);
+        let check2 = cell_list.check_particle(p2);
+        assert!(check1 == check2, "{} {} {} {}",
+                check1,
+                check2,
+                cell_list.particle_gap(0, p1),
+                cell_list.particle_gap(1, p2));
+        assert!(cell_list.particle_gap(0, p1) >= 0.0, "{}", cell_list.particle_gap(0, p1));
+        assert!(cell_list.particle_gap(1, p2) >= 0.0, "{}", cell_list.particle_gap(1, p2));
+    }
+    
+    #[test]
+    fn symmetric_invalidation2() {
+        // In the initial fix of the above test, there was a leftover case not fixed.
+        // This test was created to fix that, and the details of why this example is
+        // interesting is documented in an internal test in spheres.rs
+        use crate::common_util::{global_to_relative3, relative_to_global3};
+        use std::convert::TryInto;
+        let unit_cell = vec![5.07019429309184, -0.47515173025982416, 0.18018763060534648, -0.5656991499933727, 3.0853092570916774, -0.2935140522456714, 0.07612697602838228, -0.021482269817008064, 3.9939399781072584];
+        let rel_pos1 = [0.5029715172380667, 0.23835146318049266, 0.08529553399114896];
+        let global_pos1 = relative_to_global3(&unit_cell, &rel_pos1);
+        let rel_pos2 = [0.8993901682271355, 0.42715227859966864, 0.9539818845758558];
+        let global_pos2 = relative_to_global3(&unit_cell, &rel_pos2);
+        let overbox_list = OverboxList {
+            dim: 3,
+            overbox: 1,
+            cell: unit_cell,
+            p_vec: vec![
+                Sphere {
+                    rel_pos: rel_pos1,
+                    global_pos: global_pos1,
+                    radius: 1.0
+                },
+                Sphere {
+                    rel_pos: rel_pos2,
+                    global_pos: global_pos2,
+                    radius: 1.0
+                }
+            ]
+        };
+        let cell_list = CellList::from_overbox_list(overbox_list);
+        let p1 = &cell_list.particle_slice()[0];
+        let p2 = &cell_list.particle_slice()[1];
+        let check1 = cell_list.check_particle(p1);
+        let check2 = cell_list.check_particle(p2);
+        assert!(check1 == 2);
+        assert!(check1 == check2, "{} {} {} {}",
+                check1,
+                check2,
+                cell_list.particle_gap(0, p1),
+                cell_list.particle_gap(1, p2));
     }
 
 }

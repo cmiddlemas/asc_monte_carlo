@@ -1,0 +1,1 @@
+cargo run --release -- --cell-list -n 10 --pcell 0.1 --adjust --pressure inf --isotropic 0.1 --shear 0.01 --axial 0.1 --moves 4000 -s 100 --no-clamp --adjust-lower 0.9 --adjust-upper 1.0 --render-packing --sweeps 1000 --seedfile sample_seed.txt 

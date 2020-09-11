@@ -7,7 +7,7 @@ use std::convert::TryInto;
 use crate::asc::{Asc, save_asc_from_opt};
 use crate::schedule::{ObservableTracker, Schedule, write_sweep_log, write_data_file};
 use std::f64::consts::PI;
-use crate::common_util::{apply_pbc, relative_to_global3, global_to_relative3};
+use crate::common_util::{negate, apply_pbc, relative_to_global3, global_to_relative3};
 use kiss3d::window::Window;
 // https://github.com/sebcrozet/kiss3d/issues/66
 // sebcrozet evidently reversed decision in that thread,
@@ -37,9 +37,28 @@ pub struct Sphere {
 }
 
 impl Sphere {
+    
     pub fn make_shape(r: f64) -> Self {
         Sphere { rel_pos: [0.0, 0.0, 0.0], global_pos: [0.0, 0.0, 0.0], radius: r }
     }
+    
+    fn squared_scaling(&self, other: &Self, offset: &[f64]) -> f64 {
+        let image_x = other.global_pos[0] + offset[0];
+        let image_y = other.global_pos[1] + offset[1];
+        let image_z = other.global_pos[2] + offset[2];
+        let displacement2 = (self.global_pos[0] - image_x).powi(2) 
+                + (self.global_pos[1] - image_y).powi(2)
+                + (self.global_pos[2] - image_z).powi(2);
+        let extent2 = (self.radius + other.radius).powi(2);
+        extent2/displacement2
+    }
+
+    // Must be symmetric to avoid precision problems
+    // No roots for efficiency
+    fn squared_symmetric_squared_scaling(&self, other: &Self, offset: &[f64]) -> f64 {
+        self.squared_scaling(other, offset)*other.squared_scaling(self, &negate(offset))
+    }
+
 }
 
 impl Display for Sphere {
@@ -63,25 +82,16 @@ impl Particle for Sphere {
         Sphere { rel_pos, global_pos, radius: params[3] } 
     }
 
+    // We recommend using same numerical function for the next two,
+    // since they always need to give consistent results with each other.
     fn check_overlap(&self, other: &Self, offset: &[f64]) -> bool {
-        let image_x = other.global_pos[0] + offset[0];
-        let image_y = other.global_pos[1] + offset[1];
-        let image_z = other.global_pos[2] + offset[2];
-        (self.global_pos[0] - image_x).powi(2) 
-            + (self.global_pos[1] - image_y).powi(2)
-            + (self.global_pos[2] - image_z).powi(2)
-            <= (self.radius + other.radius).powi(2)
+        // This would probably work too
+        //(self.squared_scaling(other, offset)) > 1.0 || (other.squared_scaling(self, &negate(offset)) > 1.0)
+        self.squared_symmetric_squared_scaling(other, offset) > 1.0
     }
     
     fn overlap_scale(&self, other: &Self, offset: &[f64]) -> f64 {
-        let image_x = other.global_pos[0] + offset[0];
-        let image_y = other.global_pos[1] + offset[1];
-        let image_z = other.global_pos[2] + offset[2];
-        let displacement = ((self.global_pos[0] - image_x).powi(2) 
-            + (self.global_pos[1] - image_y).powi(2)
-            + (self.global_pos[2] - image_z).powi(2)).sqrt();
-        let extent = self.radius + other.radius;
-        (extent/displacement).powi(3) 
+        self.squared_symmetric_squared_scaling(other, offset).powf(0.75)
     }
 
     fn copy_shape_random_coord(&self,
@@ -322,4 +332,55 @@ mod tests {
         assert!(local_pbc[1] >= 0.0 && local_pbc[1] < 1.0);
         assert!(local_pbc[2] >= 0.0 && local_pbc[2] < 1.0);
     }
+    
+    #[test]
+    fn internal_symmetric_invalidation2() {
+        // This test shows why symmetric_invalidation2 in cell_list.rs
+        // was added in the first place, as it caught a bug in my first implementation
+        // aimed at fixing symmetric_invalidation1
+        use std::convert::TryInto;
+        use crate::overbox_list::OverboxList;
+        use crate::cell_list::CellList;
+        let unit_cell = vec![5.07019429309184, -0.47515173025982416, 0.18018763060534648, -0.5656991499933727, 3.0853092570916774, -0.2935140522456714, 0.07612697602838228, -0.021482269817008064, 3.9939399781072584];
+        let forward_offset: [f64; 3] = [-unit_cell[6], -unit_cell[7], -unit_cell[8]];
+        let rel_pos1 = [0.5029715172380667, 0.23835146318049266, 0.08529553399114896];
+        let global_pos1 = relative_to_global3(&unit_cell, &rel_pos1);
+        let rel_pos2 = [0.8993901682271355, 0.42715227859966864, 0.9539818845758558];
+        let global_pos2 = relative_to_global3(&unit_cell, &rel_pos2);
+        let overbox_list = OverboxList {
+            dim: 3,
+            overbox: 1,
+            cell: unit_cell,
+            p_vec: vec![
+                Sphere {
+                    rel_pos: rel_pos1,
+                    global_pos: global_pos1,
+                    radius: 1.0
+                },
+                Sphere {
+                    rel_pos: rel_pos2,
+                    global_pos: global_pos2,
+                    radius: 1.0
+                }
+            ]
+        };
+        let cell_list = CellList::from_overbox_list(overbox_list);
+        let p1 = &cell_list.particle_slice()[0];
+        let p2 = &cell_list.particle_slice()[1];
+        let check1 = cell_list.check_particle(p1);
+        let check2 = cell_list.check_particle(p2);
+        assert!(check1 == 2);
+        assert!(check1 == check2, "{} {} {} {}",
+                check1,
+                check2,
+                cell_list.particle_gap(0, p1),
+                cell_list.particle_gap(1, p2));
+        let p1_scale = p1.squared_scaling(p2, &forward_offset);
+        let p2_scale = p2.squared_scaling(p1, &negate(&forward_offset));
+        println!("{} {}", p1_scale, p2_scale);
+        assert!(p1_scale <= 1.0);
+        assert!(p2_scale > 1.0);
+        assert!(p2_scale*p1_scale > 1.0);
+    }
+
 }
