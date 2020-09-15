@@ -168,6 +168,7 @@ impl Particle for Sphere {
         let fname = format!("nn_gap_{}", schedule.current_sweep);
         write_data_file(&gap_string, &fname);
         let (pressure, unc_pressure, chisq) = config.instantaneous_pressure();
+        println!("Pressure: {}", pressure);
         let logline = format!("{} {} {} {} {} {} {} {} {} {} {}", schedule.current_sweep,
                                                 vol,
                                                 phi,

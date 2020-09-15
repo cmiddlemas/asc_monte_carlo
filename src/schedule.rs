@@ -131,6 +131,21 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone, C: Asc<P>> Schedule<P,
             _phantom2: PhantomData,
         };
         
+        // If we're setting cell parameters by gap, we should
+        // start out with the right ones
+        if let Some(mult) = OPT.adjust_gap {
+            let shear_ratio = schedule.cell_param[1]/schedule.cell_param[0];
+            let axi_ratio = schedule.cell_param[2]/schedule.cell_param[0];
+            let phi = config.packing_fraction();
+            let (_, min_gap, _, _, _) = config.nn_gap_distribution();
+            let scale = phi/(min_gap + phi);
+            let deltaV_V = 1.0 - scale;
+            let component = mult*deltaV_V/(config.dim() as f64);
+            schedule.cell_param[0] = component;
+            schedule.cell_param[1] = shear_ratio*component;
+            schedule.cell_param[2] = axi_ratio*component;
+        }
+
         // Clamp strain parameters if needed
         if !OPT.no_clamp {
             for val in schedule.cell_param.iter_mut() {
@@ -244,14 +259,14 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone, C: Asc<P>> Schedule<P,
             if let Some(ref mut w) = *window {
                 P::render_packing(w, config);
             }
-            self.post_sweep();
+            self.post_sweep(config);
             if self.should_terminate() {
                 return;
             }
         }
     }
 
-    fn post_sweep(&mut self) {
+    fn post_sweep(&mut self, config: &C) {
         //eprintln!("Sweep the roads!");
         self.current_sweep += 1;
         // Adjust MC move parameters based on acceptance ratio
@@ -270,6 +285,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone, C: Asc<P>> Schedule<P,
             let decrease_mult = OPT.adjust_dec_mult;
             let increase_mult = 1.0/decrease_mult;
 
+            // Adjust particle parameters
             if OPT.combined_move { // only use acc_ratio_0, for combined move
                 if p_acc_ratio_0 < OPT.adjust_lower {
                     for val in self.particle_param.iter_mut() {
@@ -298,13 +314,26 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone, C: Asc<P>> Schedule<P,
                 }
             }
 
-            if c_acc_ratio < OPT.adjust_lower {
-                for val in self.cell_param.iter_mut() {
-                    *val *= decrease_mult;
-                }
-            } else if c_acc_ratio > OPT.adjust_upper {
-                for val in self.cell_param.iter_mut() {
+            // Adjust cell parameters
+            if let Some(mult) = OPT.adjust_gap {
+                let shear_ratio = self.cell_param[1]/self.cell_param[0];
+                let axi_ratio = self.cell_param[2]/self.cell_param[0];
+                let phi = config.packing_fraction();
+                let scale = phi/(self.avg_min_gap + phi);
+                let deltaV_V = 1.0 - scale;
+                let component = mult*deltaV_V/(config.dim() as f64);
+                self.cell_param[0] = component;
+                self.cell_param[1] = shear_ratio*component;
+                self.cell_param[2] = axi_ratio*component;
+            } else {
+                if c_acc_ratio < OPT.adjust_lower {
+                    for val in self.cell_param.iter_mut() {
+                        *val *= decrease_mult;
+                    }
+                } else if c_acc_ratio > OPT.adjust_upper {
+                    for val in self.cell_param.iter_mut() {
                     *val *= increase_mult;
+                    }
                 }
             }
             

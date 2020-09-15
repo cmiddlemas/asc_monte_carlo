@@ -186,8 +186,10 @@ struct Opt {
 
     /// Adjust the cell moves based on avg_min_gap
     /// rather than accept probability
+    /// The given value is the multiplier to
+    /// set compression rate
     #[structopt(long)]
-    adjust_gap: bool,
+    adjust_gap: Option<f64>,
 
     /// Use uniform distributions where possible, rather
     /// than Gaussian derived distributions. Currently supported for:

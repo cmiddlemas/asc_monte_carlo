@@ -93,13 +93,15 @@ pub fn volume(dim: usize, unit_cell: &[f64]) -> f64 {
 enum StrainDistribution {
     Uni(Uniform<f64>),
     Gauss(Normal<f64>),
+    Fixed(f64),
 }
 
 impl StrainDistribution {
     fn sample(&self, rng: &mut Xoshiro256StarStar) -> f64 {
         match self {
-            Self::Uni(ref dist) => dist.sample(rng),
-            Self::Gauss(ref dist) => dist.sample(rng),
+            Self::Uni(dist) => dist.sample(rng),
+            Self::Gauss(dist) => dist.sample(rng),
+            Self::Fixed(val) => *val,
         }
     }
 }
@@ -117,16 +119,30 @@ pub fn gen_random_strain<P,C>(dim: usize,
     // https://huonw.github.io/blog/2015/01/object-safety/
     // https://www.reddit.com/r/rust/comments/620m1v/never_hearing_the_trait_x_cannot_be_made_into_an/
     // https://doc.rust-lang.org/book/ch17-02-trait-objects.html
-    let (iso_dist, shear_dist, axi_dist) = if OPT.uniform_moves {
-        ( StrainDistribution::Uni(Uniform::new(-schedule.cell_param[0], schedule.cell_param[0])),
-          StrainDistribution::Uni(Uniform::new(-schedule.cell_param[1], schedule.cell_param[1])),
-          StrainDistribution::Uni(Uniform::new(-schedule.cell_param[2], schedule.cell_param[2])) )
+    let iso_dist = if schedule.cell_param[0] == 0.0 {
+        StrainDistribution::Fixed(0.0)
+    } else if OPT.uniform_moves {
+        StrainDistribution::Uni(Uniform::new(-schedule.cell_param[0], schedule.cell_param[0]))
     } else {
-        ( StrainDistribution::Gauss(Normal::new(0.0, schedule.cell_param[0]).unwrap()),
-          StrainDistribution::Gauss(Normal::new(0.0, schedule.cell_param[1]).unwrap()),
-          StrainDistribution::Gauss(Normal::new(0.0, schedule.cell_param[2]).unwrap()) )
+        StrainDistribution::Gauss(Normal::new(0.0, schedule.cell_param[0]).unwrap())
     };
     
+    let shear_dist = if schedule.cell_param[1] == 0.0 {
+        StrainDistribution::Fixed(0.0)
+    } else if OPT.uniform_moves {
+        StrainDistribution::Uni(Uniform::new(-schedule.cell_param[1], schedule.cell_param[1]))
+    } else {
+        StrainDistribution::Gauss(Normal::new(0.0, schedule.cell_param[1]).unwrap())
+    };
+    
+    let axi_dist = if schedule.cell_param[2] == 0.0 {
+        StrainDistribution::Fixed(0.0)
+    } else if OPT.uniform_moves {
+        StrainDistribution::Uni(Uniform::new(-schedule.cell_param[2], schedule.cell_param[2]))
+    } else {
+        StrainDistribution::Gauss(Normal::new(0.0, schedule.cell_param[2]).unwrap())
+    };
+
     let dimf = dim as f64;
     if OPT.exact_volume_step {
         let old_vol = volume(dim, old_cell);
