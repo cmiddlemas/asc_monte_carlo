@@ -59,8 +59,6 @@ pub struct ObservableTracker {
     pub sum_of_ar: f64, // Aspect ratio of unit cell
     pub min_nn_gap: f64,
     pub idx_min_nn_gap: usize,
-    pub next_to_min_nn_gap: f64,
-    pub idx_next_to_min_nn_gap: usize,
     pub sum_of_min_nn_gap: f64,
 }
 
@@ -75,8 +73,6 @@ impl ObservableTracker {
             sum_of_ar: 0.0,
             min_nn_gap: 0.0,
             idx_min_nn_gap: 0,
-            next_to_min_nn_gap: 0.0,
-            idx_next_to_min_nn_gap: 0,
             sum_of_min_nn_gap: 0.0
         }
     }
@@ -99,7 +95,7 @@ pub struct Schedule<P,C> {
     pub running_obs: ObservableTracker,
     pub beta: f64,
     pub phi: f64,
-    pub avg_gap: f64,
+    pub avg_min_gap: f64,
     _phantom1: PhantomData<P>,
     _phantom2: PhantomData<C>,
 }
@@ -130,7 +126,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone, C: Asc<P>> Schedule<P,
             beta: 1.0, // TODO: decide if this should be 
                        // accessible to user
             phi: 0.0,
-            avg_gap: 0.0,
+            avg_min_gap: 0.0,
             _phantom1: PhantomData,
             _phantom2: PhantomData,
         };
@@ -216,7 +212,7 @@ impl<P: Particle + Debug + Display + Send + Sync + Clone, C: Asc<P>> Schedule<P,
                 return true;
             }
         } else if let Some(threshold) = OPT.gap_threshold {
-            if self.avg_gap/self.phi <= threshold {
+            if self.avg_min_gap/self.phi <= threshold {
                 return true;
             }
         }

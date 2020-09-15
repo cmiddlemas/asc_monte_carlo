@@ -9,7 +9,7 @@ use std::path::Path;
 use crate::OPT;
 use crate::schedule::Schedule;
 use crate::particle::Particle;
-use crate::common_util::{min_width, max_width, min_float_slice, max_float_slice, linear_fit};
+use crate::common_util::{min_width, max_width, min_with_idx_float_slice, max_float_slice, linear_fit};
 use std::fs::{OpenOptions, rename};
 use rand_distr::{Uniform, Distribution};
 use lazy_static::lazy_static;
@@ -201,9 +201,9 @@ where
     // Returns nearest-neighbor gap distribution function
     // in form [delta phi, P(delta phi), unc P(delta phi)]
     // Working on this using the ASC code Duyu gave me
-    // Also returns average nn gap in first variable, smallest
-    // gap in second, and largest in third
-    fn nn_gap_distribution(&self) -> (f64, f64, f64, Vec<[f64; 3]>) {
+    // Also returns
+    // (avg_nn_gap, min_nn_gap, idx_min_gap, max_gap, gap distr [r, val, unc])
+    fn nn_gap_distribution(&self) -> (f64, f64, usize, f64, Vec<[f64; 3]>) {
         let delta_phi: Vec<f64> = self.particle_slice().iter().enumerate()
                        .map(|(i, p)| self.particle_gap(i, p))
                        .collect();
@@ -212,7 +212,7 @@ where
         // https://stackoverflow.com/questions/56872714/iter-sum-stops-working-as-soon-as-i-add-further-operation
         let avg_nn_gap: f64 = delta_phi.iter().sum::<f64>()/n_obs;
         let max_delta_phi = max_float_slice(&delta_phi);
-        let min_delta_phi = min_float_slice(&delta_phi);
+        let (min_delta_phi, min_idx) = min_with_idx_float_slice(&delta_phi);
         let delta_phi_step = (max_delta_phi-min_delta_phi)/(OPT.n_bins_gap as f64);
         
         let midpoint: Vec<f64> = (0..OPT.n_bins_gap).map(|x|
@@ -226,7 +226,11 @@ where
             eprintln!("Warning: rare event where min = max delta phi, \
                 performing early return with all zeros for distribution!");
             eprintln!("Current cell: {:?}", self.unit_cell());
-            return (min_delta_phi, min_delta_phi, min_delta_phi, vec![[0.0; 3]; OPT.n_bins_gap])
+            return (min_delta_phi,
+                    min_delta_phi,
+                    min_idx,
+                    max_delta_phi,
+                    vec![[0.0; 3]; OPT.n_bins_gap])
         }
 
         for obs in delta_phi {
@@ -250,13 +254,17 @@ where
            .map(|(x, y)| [*x, (*y)/n_obs, (*y).sqrt()/n_obs])
            .collect();
         
-        (avg_nn_gap, min_delta_phi, max_delta_phi, distribution)
+        (avg_nn_gap,
+         min_delta_phi,
+         min_idx,
+         max_delta_phi,
+         distribution)
     }
 
     // Returns the instantaneous pressure, its uncertainty, chisq,
     // and R^2 of fit
     fn instantaneous_pressure(&self) -> (f64, f64, f64) {
-        let (_, _, _, gap_distr) = self.nn_gap_distribution();
+        let (_, _, _, _, gap_distr) = self.nn_gap_distribution();
         // Need to fit ln P1(delta phi) as indicated in
         // Eppenga and Frenkel, Mol. Phys. 52 (1984)
         // and Duyu's paper on bulk equilibrium and MRJ polyhedra

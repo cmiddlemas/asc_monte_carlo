@@ -295,7 +295,7 @@ impl Particle for Ellipsoid {
         self.global_pos = relative_to_global3(new_cell, &self.rel_pos);
     }
 
-    fn init_obs<C: Asc<Self>>(config: &C) -> ObservableTracker {
+    fn init_obs<C: Asc<Self>>(_config: &C) -> ObservableTracker {
         ObservableTracker::new()
     }
 

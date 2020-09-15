@@ -5,7 +5,6 @@ use rand::Rng;
 use rand_xoshiro::Xoshiro256StarStar;
 use crate::schedule::Schedule;
 use crate::OPT;
-use crate::particle::Particle;
 
 // For FFI
 use libc::{c_double, size_t, c_int};
@@ -186,6 +185,19 @@ pub fn min_float_slice(slice: &[f64]) -> f64 {
     }
     current_min
 }
+
+pub fn min_with_idx_float_slice(slice: &[f64]) -> (f64, usize) {
+    let mut current_min = f64::INFINITY;
+    let mut current_idx = 0;
+    for (i, f) in slice.iter().enumerate() {
+        if *f < current_min {
+            current_min = *f;
+            current_idx = i;
+        }
+    }
+    (current_min, current_idx)
+}
+
 
 pub fn max_float_slice(slice: &[f64]) -> f64 {
     let mut current_max = f64::NEG_INFINITY;
@@ -391,6 +403,12 @@ mod tests {
     fn slice_min() {
         let array = [0.2, 0.5, -0.2, 10.0, 2.0];
         assert!(min_float_slice(&array) == -0.2);
+    }
+
+    #[test]
+    fn slice_min_with_idx() {
+        let array = [0.2, 0.5, -0.2, 10.0, 2.0];
+        assert!(min_with_idx_float_slice(&array) == (-0.2, 2));
     }
 
 }

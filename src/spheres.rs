@@ -134,15 +134,13 @@ impl Particle for Sphere {
     }
 
     fn init_obs<C: Asc<Self>>(config: &C) -> ObservableTracker {
-        let (_, min_nn_gap, _, _) = config.nn_gap_distribution();
+        let (_, min_nn_gap, idx_min_nn_gap, _, _) = config.nn_gap_distribution();
         ObservableTracker {
             n_samples: 0.0,
             sum_of_vol: 0.0,
             sum_of_ar: 0.0,
             min_nn_gap,
-            idx_min_nn_gap: 0,
-            next_to_min_nn_gap: 0.0,
-            idx_next_to_min_nn_gap: 0,
+            idx_min_nn_gap,
             sum_of_min_nn_gap: 0.0
         }
     }
@@ -157,8 +155,12 @@ impl Particle for Sphere {
         let phi = config.packing_fraction();
         schedule.phi = phi;
         println!("Phi at end of sweep: {}", phi);
-        let (avg_nn_gap, min_nn_gap, max_nn_gap, gap_distr) = config.nn_gap_distribution();
-        schedule.avg_gap = avg_nn_gap;
+        let (avg_nn_gap,
+             min_nn_gap,
+             _idx_min_nn_gap,
+             max_nn_gap,
+             gap_distr) = config.nn_gap_distribution();
+        schedule.avg_min_gap = avg_min_gap;
         println!("Average min gap, mean gap: {} {}", avg_min_gap, avg_nn_gap);
         let gap_string: String = gap_distr.iter()
                                           .map(|x| format!("{} {} {}\n", x[0], x[1], x[2]))
@@ -166,11 +168,12 @@ impl Particle for Sphere {
         let fname = format!("nn_gap_{}", schedule.current_sweep);
         write_data_file(&gap_string, &fname);
         let (pressure, unc_pressure, chisq) = config.instantaneous_pressure();
-        let logline = format!("{} {} {} {} {} {} {} {} {} {}", schedule.current_sweep,
+        let logline = format!("{} {} {} {} {} {} {} {} {} {} {}", schedule.current_sweep,
                                                 vol,
                                                 phi,
                                                 pressure,
                                                 unc_pressure,
+                                                chisq,
                                                 avg_min_gap,
                                                 avg_nn_gap,
                                                 min_nn_gap,
@@ -201,11 +204,21 @@ impl Particle for Sphere {
     {
         schedule.running_obs.n_samples += 1.0;
         schedule.running_obs.sum_of_vol += config.cell_volume();
+        
         let possible_gap = config.particle_gap(changed_idx, &config.particle_slice()[changed_idx]);
-        if possible_gap < schedule.running_obs.min_nn_gap {
+        
+        if possible_gap <= schedule.running_obs.min_nn_gap {
             schedule.running_obs.min_nn_gap = possible_gap;
+            schedule.running_obs.idx_min_nn_gap = changed_idx;
+        // Invalidated current minimum gap
+        } else if changed_idx == schedule.running_obs.idx_min_nn_gap {
+            let (_, min_nn_gap, idx_min_nn_gap, _, _) = config.nn_gap_distribution();
+            schedule.running_obs.min_nn_gap = min_nn_gap;
+            schedule.running_obs.idx_min_nn_gap = idx_min_nn_gap;
         }
+        
         schedule.running_obs.sum_of_min_nn_gap += schedule.running_obs.min_nn_gap;
+        
         schedule.running_obs.sum_of_ar += config.aspect_ratio();
     }
     
@@ -217,11 +230,13 @@ impl Particle for Sphere {
     {
         schedule.running_obs.n_samples += 1.0;
         schedule.running_obs.sum_of_vol += config.cell_volume();
-        let (_, possible_gap, _, _) = config.nn_gap_distribution();
-        if possible_gap < schedule.running_obs.min_nn_gap {
-            schedule.running_obs.min_nn_gap = possible_gap;
-        }
+        
+        let (_, min_nn_gap, idx_min_nn_gap, _, _) = config.nn_gap_distribution();
+        schedule.running_obs.min_nn_gap = min_nn_gap;
+        schedule.running_obs.idx_min_nn_gap = idx_min_nn_gap;
+
         schedule.running_obs.sum_of_min_nn_gap += schedule.running_obs.min_nn_gap;
+        
         schedule.running_obs.sum_of_ar += config.aspect_ratio();
     }
 

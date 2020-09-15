@@ -5,6 +5,10 @@
 // Assumes monodispersity for now
 // Is probably similar to Ge's cell list implementation,
 // which I have access to, but this is in native rust
+// Also looked at the M. Skoge LS code and
+// http://www.acclab.helsinki.fi/~knordlun/moldyn/lecture03.pdf
+// and
+// http://cacs.usc.edu/education/cs596/01-1LinkedListCell.pdf
 use crate::asc::Asc;
 use crate::common_util::volume;
 use crate::particle::Particle;
@@ -44,7 +48,6 @@ impl<P> CellList<P> {
 // http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.57.1696&rep=rep1&type=pdf
 // https://hoomd-blue.readthedocs.io/en/stable/nlist.html
 fn max_subdiv(dim: usize, unit_cell: &[f64], max_radius: f64) -> usize {
-    let vol = volume(dim, unit_cell);
     let max_diam = 2.0*max_radius;
     let min_width = min_width(dim, unit_cell);    
     // https://stackoverflow.com/questions/37506672/convert-float-to-integer-in-rust
