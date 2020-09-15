@@ -184,6 +184,17 @@ struct Opt {
     #[structopt(long, default_value = "0.01")]
     isotropic: f64,
 
+    /// Adjust the cell moves based on avg_min_gap
+    /// rather than accept probability
+    #[structopt(long)]
+    adjust_gap: bool,
+
+    /// Use uniform distributions where possible, rather
+    /// than Gaussian derived distributions. Currently supported for:
+    /// strain steps
+    #[structopt(long)]
+    uniform_moves: bool,
+
     /// Use an exact method for choosing volume step? If given,
     /// program will ignore --shear and --axial, and only perform
     /// isotropic dilations/compressions

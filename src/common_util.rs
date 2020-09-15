@@ -1,6 +1,6 @@
 use nalgebra::{Matrix2, Vector2, Matrix3, Vector3};
 use std::convert::TryInto;
-use rand_distr::{Normal, Distribution};
+use rand_distr::{Uniform, Normal, Distribution};
 use rand::Rng;
 use rand_xoshiro::Xoshiro256StarStar;
 use crate::schedule::Schedule;
@@ -89,6 +89,21 @@ pub fn volume(dim: usize, unit_cell: &[f64]) -> f64 {
     }
 }
 
+// https://stackoverflow.com/questions/51841791/why-do-i-get-the-error-wrong-number-of-type-arguments-when-i-use-hyperclient
+enum StrainDistribution {
+    Uni(Uniform<f64>),
+    Gauss(Normal<f64>),
+}
+
+impl StrainDistribution {
+    fn sample(&self, rng: &mut Xoshiro256StarStar) -> f64 {
+        match self {
+            Self::Uni(ref dist) => dist.sample(rng),
+            Self::Gauss(ref dist) => dist.sample(rng),
+        }
+    }
+}
+
 // Returns (Tr(strain), new_cell)
 pub fn gen_random_strain<P,C>(dim: usize,
                          old_cell: &[f64],
@@ -97,12 +112,20 @@ pub fn gen_random_strain<P,C>(dim: usize,
 -> (f64, Vec<f64>) 
 {
     // Set up random distributions
-    let iso_dist = Normal::new(0.0, schedule.cell_param[0])
-        .unwrap();
-    let shear_dist = Normal::new(0.0, schedule.cell_param[1])
-        .unwrap();
-    let axi_dist = Normal::new(0.0, schedule.cell_param[2])
-        .unwrap();
+    // Need to use enum because Distribution is not object safe
+    // https://stackoverflow.com/questions/45116984/the-trait-cannot-be-made-into-an-object
+    // https://huonw.github.io/blog/2015/01/object-safety/
+    // https://www.reddit.com/r/rust/comments/620m1v/never_hearing_the_trait_x_cannot_be_made_into_an/
+    // https://doc.rust-lang.org/book/ch17-02-trait-objects.html
+    let (iso_dist, shear_dist, axi_dist) = if OPT.uniform_moves {
+        ( StrainDistribution::Uni(Uniform::new(-schedule.cell_param[0], schedule.cell_param[0])),
+          StrainDistribution::Uni(Uniform::new(-schedule.cell_param[1], schedule.cell_param[1])),
+          StrainDistribution::Uni(Uniform::new(-schedule.cell_param[2], schedule.cell_param[2])) )
+    } else {
+        ( StrainDistribution::Gauss(Normal::new(0.0, schedule.cell_param[0]).unwrap()),
+          StrainDistribution::Gauss(Normal::new(0.0, schedule.cell_param[1]).unwrap()),
+          StrainDistribution::Gauss(Normal::new(0.0, schedule.cell_param[2]).unwrap()) )
+    };
     
     let dimf = dim as f64;
     if OPT.exact_volume_step {
