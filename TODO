@@ -22,7 +22,7 @@ here thought to remind
     https://github.com/serde-rs/json/issues/202
     (NOTE 3 September 2020) Still need to convert testing scripts
 4 September 2020
-IMPORTANT: There is suspected bug in averaging min nn gap or point sampling,
+IMPORTANT: (FIXED 14 September 2020) There is suspected bug in averaging min nn gap or point sampling,
 based on data in mrj_sphere_two_stage_slower
 10 September 2020
 IMPORTANT: Latent bug, still need to propagate symmetry of particle gap distance
