@@ -4,6 +4,8 @@
 // Jiao et. al. Nature 2009
 // Generic over particle shape and simulation dimension
 // Uses a naive "overbox" implementation to achieve pbc
+// See https://github.com/sdatkinson/TJ for a public implementation of a
+// Torquato group code with a similar idea
 use std::fmt::{Debug, Display};
 use rand_xoshiro::Xoshiro256StarStar;
 use itertools::{Itertools, Position};
